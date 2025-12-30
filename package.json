@@ -1,0 +1,18 @@
+{
+  "name": "acsrq-guide",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./pokeclicker-wiki/start.js",
+    "build": "browserify scripts/main.js -o bundle.js",
+    "watch": "watchify scripts/main.js -o bundle.js",
+    "update": "git submodule update --init && git submodule update --remote && npm run build",
+    "test": "eslint ./scripts"
+  },
+  "dependencies": {
+    "browserify": "^17.0.0",
+    "five-server": "^0.1.8",
+    "glob": "^8.0.3",
+    "watchify": "^4.0.0"
+  }
+}
