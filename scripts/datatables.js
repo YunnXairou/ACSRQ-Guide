@@ -16,9 +16,6 @@ function mergeGridCells() {
                 return;
             }
 
-            console.log(dimension_td
-            ,first_instance)
-                
             if (first_instance == null) {
                 // must be the first row
                 first_instance = dimension_td;
@@ -29,7 +26,6 @@ function mergeGridCells() {
                 // increment the rowspan attribute of the first instance
                 first_instance.attr('rowspan', ++rowspan);
             } else {
-                console.log(dimension_td.text() == first_instance.text())
                 // this cell is different from the last
                 first_instance = dimension_td;
                 rowspan = 1;

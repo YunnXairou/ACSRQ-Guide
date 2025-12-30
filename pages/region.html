@@ -5,7 +5,8 @@
             <tr>
                 <th>Region</th>
                 <th>Area</th>
-                <th>Items</th>
+                <th>Shops Items</th>
+                <!-- <th>Items Needed</th> -->
                 <th>Catch</th>
             </tr>
         </thead>
@@ -16,10 +17,13 @@
                 </td>
                 <td data-bind="text: $data.area">
                 </td>
-                <td data-bind="foreach: $data.items">
+                <td data-bind="foreach: $data.shops">
                   <span class="badge text-bg-secondary" data-bind="text: $data"></span>
                 </td>
-                <td data-bind="foreach: $data.catch">
+                <!-- <td data-bind="foreach: $data.needed">
+                  <span class="badge text-bg-secondary" data-bind="text: $data"></span>
+                </td> -->
+                <td data-bind="foreach: $data.pokemon.sort()">
                   <span class="badge text-bg-secondary" data-bind="text: $data"></span>
                 </td>
             </tr>

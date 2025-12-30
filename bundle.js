@@ -51,7 +51,7 @@ const applyDatatables = () => {
                     previous: '←',
                     next: '→',
                   }
-                }
+                },
             });
 
             // Setup a custom handler to reset sort order after descending instead of going back to ascending
@@ -342,13 +342,26 @@ module.exports={
 
 const regionGuide = [];
 const done = {
-    catch: new Set(),
+    pokemon: new Set(),
     route: new Set(),
+    items: new Set(),
+    dungeon: new Set(),
+    gym: new Set(),
 }
 
 /* overrides */ {
+    KeyItemController.showGainModal = function () { };
+
     RouteKillRequirement.prototype.isCompleted = function () {
         return done.route.has(`${this.region}-${this.route}`)
+    }
+
+    ClearDungeonRequirement.prototype.isCompleted = function() {
+        return done.dungeon.has(this.dungeonIndex)
+    }
+
+    GymBadgeRequirement.prototype.isCompleted = function() {
+        return done.gym.has(this.badge)
     }
 }
 
@@ -359,53 +372,120 @@ const done = {
     const towns = Object.values(TownList).filter(t => t.region === region)
     const routes = Routes.getRoutesByRegion(region)
     const dungeons = GameConstants.RegionDungeons[region]
+    const gyms = GameConstants.RegionGyms[region]
 
     while (1) {
+        const data = {
+            region: SubRegions.getSubRegionById(region, 0).name,
+            area: '',
+            pokemon: [],
+            shops: [],
+            needed: []
+        }
+
+        // town
         const t = towns[0];
         if (t.isUnlocked()) {
-            const _ = {
-                region: SubRegions.getSubRegionById(t.region, t.subRegion || 0).name,
-                area: t.name,
-                items: [],
-                catch: []
-            }
+            data.region = SubRegions.getSubRegionById(t.region, t.subRegion || 0).name
+            data.area = t.name
 
-            datas.push(_);
+            t.content.forEach(c => {
+
+                // find new items to buy
+                if (c.constructor.name === "Shop") {
+                    c.items.forEach((i) => {
+
+                        switch(i.constructor.name) {
+                            case "BattleItem":
+                                return
+                            case "PokemonItem":
+                                if (!done.pokemon.has(i.name)) {
+                                    done.pokemon.add(i.name)
+                                    data.shops.push(i.name);
+                                }
+                            default:
+                                if (!done.items.has(i.name)) {
+                                    i.gain(1);
+                                    done.items.add(i.name)
+                                    data.shops.push(i._displayName);
+                                }
+                        }
+
+                        if (i.constructor.name !== "BattleItem" && !done.items.has(i.name)) {
+                            i.gain(1);
+                            done.items.add(i.name)
+                            data.shops.push(i._displayName || i.name);
+                        }
+                    })
+                }
+            });
+
             towns.shift();
+            datas.push(data);
             continue;
         }
 
+        // route
         const r = routes[0]
         if (r.isUnlocked()) {
-            const _ = {
-                region: SubRegions.getSubRegionById(r.region, r.subRegion || 0).name,
-                area: r.routeName,
-                items: [],
-                catch: []
-            }
+            data.region = SubRegions.getSubRegionById(r.region, r.subRegion || 0).name
+            data.area = r.routeName
 
+            // find new pokemon
             r.pokemon.land.forEach(p => {
-                if (!done.catch.has(p)) {
-                    _.catch.push(p)
-                    done.catch.add(p)
+                if (!done.pokemon.has(p)) {
+                    data.pokemon.push(p)
+                    done.pokemon.add(p)
                 }
             })
 
             // unlock RouteRequirements
             done.route.add(`${r.region}-${r.number}`)
 
-            datas.push(_);
             routes.shift();
+            datas.push(data);
             continue;
         }
 
-        // const d = dungeonList[dungeons[0]];
-        // if (d.isUnlocked()) {
-        //     console.log(d)
-        // }
+        // dungeon
+        const d = dungeonList[dungeons[0]];
+        if (d.isUnlocked()) {
+            data.area = d.name;
 
-        // console.log(d, d.isUnlocked());
-        // console.log(dungeons);
+            // find new pokemon as encounter
+            d.enemyList.forEach(e => {
+                if (e.constructor.name === "Object" && !done.pokemon.has(e.pokemon)) {
+                    data.pokemon.push(e.pokemon)
+                    done.pokemon.add(e.pokemon)
+                }
+            })
+            // find new pokemon as boss (wihtout events)
+            d.bossList.forEach(e => {
+                if (e.constructor.name === "DungeonBossPokemon" && e.options?.requirement == null && !done.pokemon.has(e.name)) {
+                    data.pokemon.push(e.name)
+                    done.pokemon.add(e.name)
+                }
+            })
+
+            // unlock DungeonRequirements
+            done.dungeon.add(GameConstants.RegionDungeons.flat().findIndex(_=>_ === d.name));
+
+            dungeons.shift();
+            datas.push(data);
+            continue;
+        }
+
+        // gym
+        const g = GymList[gyms[0]];
+        if (g.isUnlocked()) {
+            data.area = `${g.town}'s gym`
+
+            done.gym.add(g.badgeReward)
+
+            gyms.shift()
+            datas.push(data);
+            continue;
+        }
 
         break;
     }
@@ -416,18 +496,98 @@ module.exports = {
 }
 
 },{}],5:[function(require,module,exports){
+const { applyDatatables } = require('../pokeclicker-wiki/scripts/datatables')
+
+function mergeGridCells() {
+    var dimension_col = 0;
+
+    $('.table:has(thead)').each((_, element) => {
+        var first_instance = null;
+        var rowspan = 1;
+
+        $(element).find('tr').each(function () {
+
+            // find the td of the correct column (determined by the dimension_col set above)
+            var dimension_td = $(this).find(`td:nth-child(${dimension_col + 1})`);
+
+            if(!dimension_td) {
+                return;
+            }
+
+            if (first_instance == null) {
+                // must be the first row
+                first_instance = dimension_td;
+            } else if (dimension_td.text() == first_instance.text()) {
+                // the current td is identical to the previous
+                // remove the current td
+                dimension_td.remove();
+                // increment the rowspan attribute of the first instance
+                first_instance.attr('rowspan', ++rowspan);
+            } else {
+                // this cell is different from the last
+                first_instance = dimension_td;
+                rowspan = 1;
+            }
+        })
+    })
+    //         var dimension_cells = new Array();
+    //         var dimension_col = null;
+    //         var columnCount = $(element, "tr:first th").length;
+
+    // console.log(columnCount)
+
+    //         for (dimension_col = 0; dimension_col < columnCount; dimension_col++) {
+    //             // first_instance holds the first instance of identical td
+    //             var first_instance = null;
+    //             var rowspan = 1;
+    //             // iterate through rows
+    //             $("#example").find('tr').each(function () {
+
+    //                 // find the td of the correct column (determined by the dimension_col set above)
+    //                 var dimension_td = $(this).find('td:nth-child(' + dimension_col + ')');
+
+    //                 if (first_instance == null) {
+    //                     // must be the first row
+    //                     first_instance = dimension_td;
+    //                 } else if (dimension_td.text() == first_instance.text()) {
+    //                     // the current td is identical to the previous
+    //                     // remove the current td
+    //                     dimension_td.remove();
+    //                     ++rowspan;
+    //                     // increment the rowspan attribute of the first instance
+    //                     first_instance.attr('rowspan', rowspan);
+    //                 } else {
+    //                     // this cell is different from the last
+    //                     first_instance = dimension_td;
+    //                     rowspan = 1;
+    //                 }
+    //             });
+    //         }
+    //     })
+}
+
+module.exports = {
+    applyDatatables: function () {
+        applyDatatables();
+        mergeGridCells();
+    },
+}
+
+},{"../pokeclicker-wiki/scripts/datatables":1}],6:[function(require,module,exports){
 // import our version etc
 const package = require('../pokeclicker/package.json');
 
 window.Guide = {
     package,
-    ...require('../pokeclicker-wiki/scripts/datatables'),
+    ...require('./datatables'),
     ...require('../pokeclicker-wiki/scripts/game'),
     ...require('./data'),
     ...require('./navigation'),
 }
 
-},{"../pokeclicker-wiki/scripts/datatables":1,"../pokeclicker-wiki/scripts/game":2,"../pokeclicker/package.json":3,"./data":4,"./navigation":6}],6:[function(require,module,exports){
+},{"../pokeclicker-wiki/scripts/game":2,"../pokeclicker/package.json":3,"./data":4,"./datatables":5,"./navigation":7}],7:[function(require,module,exports){
+const { applyDatatables } = require('./datatables');
+
 const applyBindings = ko.observable(false);
 
 $('document').off('ready');
@@ -445,11 +605,13 @@ $(document).ready(() => {
     }
   });
 
-    const pageElement = $('#wiki-page-content');
-    $.get("./pages/region.html", (data) => {
-        pageElement.html(data);
-        applyBindings(true);
-    }) 
+
+  const pageElement = $('#wiki-page-content');
+  $.get("./pages/region.html", (data) => {
+    pageElement.html(data);
+    applyBindings(true);
+  })
+
 });
 
-},{}]},{},[5]);
+},{"./datatables":5}]},{},[6]);
