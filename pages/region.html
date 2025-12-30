@@ -5,7 +5,8 @@
             <tr>
                 <th>Region</th>
                 <th>Area</th>
-                <th>Shops Items</th>
+                <th>Key Items</th>
+                <th>Shops</th>
                 <!-- <th>Items Needed</th> -->
                 <th>Catch</th>
             </tr>
@@ -16,6 +17,9 @@
                     data-bind="text: $data.region">
                 </td>
                 <td data-bind="text: $data.area">
+                </td>
+                <td data-bind="foreach: $data.key">
+                  <span class="badge text-bg-secondary" data-bind="text: $data"></span>
                 </td>
                 <td data-bind="foreach: $data.shops">
                   <span class="badge text-bg-secondary" data-bind="text: $data"></span>

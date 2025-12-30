@@ -52,6 +52,7 @@ const done = {
             region: SubRegions.getSubRegionById(region, 0).name,
             area: '',
             pokemon: [],
+            key: [],
             shops: [],
             needed: []
         }
@@ -62,22 +63,9 @@ const done = {
     const dungeons = GameConstants.RegionDungeons[region]
     const gyms = GameConstants.RegionGyms[region]
     const battles = GameConstants.TemporaryBattles
+    const keys = App.game.keyItems.itemList
 
     //#region Calculators
-    function checkBattle(index, data) {
-        const b = TemporaryBattleList[index]
-        if (!b.isUnlocked()) {
-            return false
-        } else if (done.battle.has(b.name)) {
-            return true
-        }
-
-        data.area = b.optionalArgs.displayName || b.name
-        datas.push(data)
-
-        done.battle.add(b.name)
-        return true
-    }
     function checkTown(index, data) {
         const t = towns[index];
         if (!t.isUnlocked())
@@ -92,30 +80,29 @@ const done = {
                 // find new items to buy
                 case 'Shop': {
                     c.items.forEach((i) => {
-
                         switch (i.constructor.name) {
                             case "BattleItem":
-                                return
-                            case "PokemonItem":
+                                break;
+                            case "PokemonItem": {
                                 if (!done.pokemon.has(i.name)) {
                                     done.pokemon.add(i.name)
                                     data.shops.push(i.name);
                                 }
-                            default:
+                                break
+                            }
+                            case "BuyKeyItem":{
+                                i.gain(1);
+                                break;
+                            }
+                            default: {
                                 if (!done.items.has(i.name)) {
                                     i.gain(1);
                                     done.items.add(i.name)
                                     data.shops.push(i._displayName);
                                 }
-                        }
-
-                        if (i.constructor.name !== "BattleItem" && !done.items.has(i.name)) {
-                            i.gain(1);
-                            done.items.add(i.name)
-                            data.shops.push(i._displayName || i.name);
+                            }
                         }
                     })
-                    break;
                 }
                 case 'Gym': {
                     checkGym(t.name, newData())
@@ -150,6 +137,7 @@ const done = {
 
         // unlock RouteRequirements
         done.route.add(`${r.region}-${r.number}`)
+        App.game.statistics.routeKills[r.region][r.number](100)
         return true
     }
     function checkDungeon(index, data) {
@@ -196,7 +184,7 @@ const done = {
     }
     function checkGym(index, data) {
         const g = GymList[index];
-        if (!g.isUnlocked() || !g.parent.isUnlocked()) {
+        if (!g || !g.isUnlocked() || !g.parent.isUnlocked()) {
             return false;
         } else if (done.gym.has(g.badgeReward)) {
             return true
@@ -208,9 +196,23 @@ const done = {
         done.gym.add(g.badgeReward)
         return true
     }
+    function checkBattle(index, data) {
+        const b = TemporaryBattleList[index]
+        if (!b.isUnlocked()) {
+            return false
+        } else if (done.battle.has(b.name)) {
+            return true
+        }
+
+        data.area = b.optionalArgs.displayName || b.name
+        datas.push(data)
+
+        done.battle.add(b.name)
+        return true
+    }
     //#endregion
 
-    let tdx = rdx = ddx = gdx = bdx = 0;
+    let tdx = rdx = ddx = gdx = bdx = 0, kdx = 3;
     let data = {}
 
     for (let i = -1; i < datas.length; i++) {
@@ -226,8 +228,16 @@ const done = {
         } else if (checkRoute(rdx, newData())) {
             rdx++
         }
+
+
+        for (k = keys[kdx]; k.isUnlocked(); k = keys[kdx]) {
+            datas[datas.length - 1].key.push(k.displayName);
+            done.items.add(k.displayName);
+            kdx++;
+        }
     }
 
+    console.log(keys[kdx])
     console.log(gyms[gdx], battles[bdx], dungeons[ddx])
 }
 
