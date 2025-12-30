@@ -3,7 +3,7 @@ const package = require('../pokeclicker/package.json');
 
 window.Guide = {
     package,
-    ...require('../pokeclicker-wiki/scripts/datatables'),
+    ...require('./datatables'),
     ...require('../pokeclicker-wiki/scripts/game'),
     ...require('./data'),
     ...require('./navigation'),

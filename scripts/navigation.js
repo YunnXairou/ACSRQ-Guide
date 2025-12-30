@@ -1,3 +1,5 @@
+const { applyDatatables } = require('./datatables');
+
 const applyBindings = ko.observable(false);
 
 $('document').off('ready');
@@ -15,9 +17,11 @@ $(document).ready(() => {
     }
   });
 
-    const pageElement = $('#wiki-page-content');
-    $.get("./pages/region.html", (data) => {
-        pageElement.html(data);
-        applyBindings(true);
-    }) 
+
+  const pageElement = $('#wiki-page-content');
+  $.get("./pages/region.html", (data) => {
+    pageElement.html(data);
+    applyBindings(true);
+  })
+
 });
