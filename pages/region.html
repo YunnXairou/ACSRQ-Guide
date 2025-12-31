@@ -3,8 +3,8 @@
     <table class="table table-hover table-striped table-bordered" data-order="[]">
         <thead class="thead-dark">
             <tr>
-                <th>Region</th>
-                <th>Area</th>
+                <th class="text-center" >Region</th>
+                <th class="text-center" >Area</th>
                 <th>Key Items</th>
                 <th>Shops</th>
                 <!-- <th>Items Needed</th> -->
@@ -13,10 +13,10 @@
         </thead>
         <tbody data-bind="foreach: Guide.getRegion(GameConstants.Region.kanto)">
             <tr class="text-nowrap">
-                <td
+                <td class="text-center" 
                     data-bind="text: $data.region">
                 </td>
-                <td data-bind="text: $data.area">
+                <td class="text-center" data-bind="text: $data.area">
                 </td>
                 <td data-bind="foreach: $data.key">
                   <span class="badge text-bg-secondary" data-bind="text: $data"></span>

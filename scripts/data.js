@@ -2,54 +2,22 @@
 const regionGuide = [];
 const done = {
     pokemon: new Set(),
-    route: new Set(),
     items: new Set(),
-    dungeon: new Set(),
-    gym: new Set(),
     battle: new Set(),
 }
 
 /* overrides */ {
     KeyItemController.showGainModal = function () { };
-
-    RouteKillRequirement.prototype.isCompleted = function () {
-        return done.route.has(`${this.region}-${this.route}`)
-    }
-
-    ClearDungeonRequirement.prototype.isCompleted = function () {
-        return done.dungeon.has(this.dungeonIndex)
-    }
-
-    GymBadgeRequirement.prototype.isCompleted = function () {
-        if (this.option === GameConstants.AchievementOption.less) {
-            return !done.gym.has(this.badge)
-        } else {
-            return done.gym.has(this.badge)
-        }
-    }
-
-    TemporaryBattleRequirement.prototype.isCompleted = function () {
-        return done.battle.has(this.battleName)
-    }
+    SpecialEventRequirement.prototype.isCompleted = function () { return false }
 }
 
-
-/* manual fixes */ {
-    TownList['Route 4 Pokémon Center'].name = 'Route 3 Pokémon Center'
-    TownList["Bill's House"].requirements.push(new RouteKillRequirement(10, 0, 5))
-    TownList["Vermilion City"].requirements.push(new TemporaryBattleRequirement("Blue 3"))
-    TownList["Saffron City"].requirements.push(new ClearDungeonRequirement(1, GameConstants.RegionDungeons.flat().indexOf('Rocket Game Corner')))
-    TemporaryBattleList['Snorlax route 16'].requirements.push(new RouteKillRequirement(10, 0, 15))
-    TownList["Fuchsia City"].requirements.push(new RouteKillRequirement(10, 0, 18))
-}
-
-/* calculator */ {
+function updateRouteInfo() {
     const region = GameConstants.Region.kanto;
     const datas = regionGuide[region] = [];
 
     function newData() {
         return {
-            region: SubRegions.getSubRegionById(region, 0).name,
+            region: '',
             area: '',
             pokemon: [],
             key: [],
@@ -58,14 +26,14 @@ const done = {
         }
     }
 
-    const towns = Object.values(TownList).filter(t => t.region === region)
-    const routes = Routes.getRoutesByRegion(region)
-    const dungeons = GameConstants.RegionDungeons[region]
-    const gyms = GameConstants.RegionGyms[region]
-    const battles = GameConstants.TemporaryBattles
-    const keys = App.game.keyItems.itemList
-
     //#region Calculators
+    function getRegionFromTown(town) {
+        const t = TownList[town]
+        if (!t) 
+            return ''
+        return SubRegions.getSubRegionById(t.region, t.subRegion || 0).name
+    }
+
     function checkTown(index, data) {
         const t = towns[index];
         if (!t.isUnlocked())
@@ -90,14 +58,17 @@ const done = {
                                 }
                                 break
                             }
-                            case "BuyKeyItem":{
+                            case "BuyKeyItem": {
                                 i.gain(1);
-                                break;
+                                done.items.add(i.name)
+                                done.items.add(i._displayName)
+                                data.key.push(i._displayName);
                             }
                             default: {
                                 if (!done.items.has(i.name)) {
                                     i.gain(1);
                                     done.items.add(i.name)
+                                    done.items.add(i._displayName)
                                     data.shops.push(i._displayName);
                                 }
                             }
@@ -135,8 +106,6 @@ const done = {
             }
         })
 
-        // unlock RouteRequirements
-        done.route.add(`${r.region}-${r.number}`)
         App.game.statistics.routeKills[r.region][r.number](100)
         return true
     }
@@ -146,28 +115,15 @@ const done = {
             return false
         }
 
-        console.log(d)
-
+        data.region = getRegionFromTown(index) 
         data.area = d.name;
         datas.push(data)
 
         // find new pokemon as encounter
-        d.enemyList.forEach(e => {
-            switch (e.constructor.name) {
-                case "Object": {
-                    if (!done.pokemon.has(e.pokemon)) {
-                        data.pokemon.push(e.pokemon)
-                        done.pokemon.add(e.pokemon)
-                    }
-                    break
-                }
-                case "String": {
-                    if (!done.pokemon.has(e)) {
-                        data.pokemon.push(e)
-                        done.pokemon.add(e)
-                    }
-                    break
-                }
+        d.pokemonList.forEach(p => {
+            if (!done.pokemon.has(p)) {
+                data.pokemon.push(p)
+                done.pokemon.add(p)
             }
         })
         // find new pokemon as boss (wihtout events)
@@ -178,22 +134,26 @@ const done = {
             }
         })
 
-        // unlock DungeonRequirements
-        done.dungeon.add(GameConstants.RegionDungeons.flat().indexOf(d.name));
+        const dungeon_index = GameConstants.RegionDungeons.flat().indexOf(d.name);
+        App.game.statistics.dungeonsCleared[dungeon_index](1000)
         return true;
     }
     function checkGym(index, data) {
         const g = GymList[index];
         if (!g || !g.isUnlocked() || !g.parent.isUnlocked()) {
             return false;
-        } else if (done.gym.has(g.badgeReward)) {
+        } else if (g.clears()) {
             return true
         }
 
+        data.region = getRegionFromTown(index) 
         data.area = `${g.town}'s gym`
         datas.push(data)
 
-        done.gym.add(g.badgeReward)
+        GymBattle.gym = g;
+        g.firstWinReward();
+
+        App.game.statistics.gymsDefeated[GameConstants.getGymIndex(index)](200);
         return true
     }
     function checkBattle(index, data) {
@@ -204,18 +164,59 @@ const done = {
             return true
         }
 
-        data.area = b.optionalArgs.displayName || b.name
+        data.region = getRegionFromTown(b.optionalArgs.returnTown || b.parent.name) 
+        data.area = /*b.optionalArgs.displayName ||*/ b.name
         datas.push(data)
+
+        TemporaryBattleRunner.startBattle(b)
+        TemporaryBattleRunner.battleWon(b)
 
         done.battle.add(b.name)
         return true
     }
+    function checkQuest(questLine) {
+
+        const current = questLine.curQuestObject()
+
+        if (current.dungeon) {
+            const dungeon_index = GameConstants.RegionDungeons.flat().indexOf(current.dungeon);
+            const current_clear = App.game.statistics.dungeonsCleared[dungeon_index]()
+
+            if (current_clear > 0) {
+                App.game.statistics.dungeonsCleared[dungeon_index](current_clear + 1)
+            }
+        } else if (current.gymTown) {
+            const gym_index = GameConstants.getGymIndex(current.gymTown)
+            const current_clear = App.game.statistics.gymsDefeated[gym_index]()
+            
+            if (current_clear > 0) {
+                App.game.statistics.gymsDefeated[gym_index](current_clear + 1);
+            }
+        }
+
+        // console.log(questLine.curQuestObject())
+
+        return questLine.state() === QuestLineState.ended
+    }
     //#endregion
 
-    let tdx = rdx = ddx = gdx = bdx = 0, kdx = 3;
-    let data = {}
+    const towns = Object.values(TownList).filter(t => t.region === region)
+    const routes = Routes.getRoutesByRegion(region)
+    const dungeons = GameConstants.RegionDungeons[region]
+    const gyms = GameConstants.RegionGyms[region]
+    const battles = GameConstants.TemporaryBattles
+    const quests = App.game.quests.questLines()
+    const keys = new Set(App.game.keyItems.itemList)
 
-    for (let i = -1; i < datas.length; i++) {
+    let idx = tdx = rdx = ddx = gdx = bdx = 0, qdx = 1;
+
+    do {
+
+        App.game.quests.questLines().forEach((q)=>{
+            if (q.state() === QuestLineState.started) {
+                checkQuest(q)
+            }
+        })
 
         if (checkTown(tdx, newData())) {
             tdx++
@@ -229,18 +230,26 @@ const done = {
             rdx++
         }
 
-
-        for (k = keys[kdx]; k.isUnlocked(); k = keys[kdx]) {
-            datas[datas.length - 1].key.push(k.displayName);
-            done.items.add(k.displayName);
-            kdx++;
+        for (k of keys) {
+            if (k.isUnlocked()) {
+                if (!done.items.has(k.displayName)) {
+                    datas[idx].key.push(k.displayName);
+                    done.items.add(k.displayName);
+                }
+                keys.delete(k)
+            }
         }
-    }
 
-    console.log(keys[kdx])
+        requestAnimationFrame(() => {
+            $('#receiveBadgeModal').modal('hide')
+            $('#questStepClearedModal').modal('hide')
+        })
+    } while (idx++ < datas.length)
+
     console.log(gyms[gdx], battles[bdx], dungeons[ddx])
 }
 
 module.exports = {
+    updateRouteInfo,
     getRegion: (r) => regionGuide[r]
 }
