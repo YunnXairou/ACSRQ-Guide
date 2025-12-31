@@ -380,7 +380,7 @@ function updateRouteInfo() {
         if (type != GameConstants.EggItemType.Mystery_egg)
             return App.game.breeding.hatchList[type][region]
         else
-            return Object.values(App.game.breeding.hatchList).flatMap(_=>_[region])
+            return Object.values(App.game.breeding.hatchList).flatMap(_ => _[region])
     }
 
     function checkTown(index, data) {
@@ -402,31 +402,30 @@ function updateRouteInfo() {
                                 break;
                             case "PokemonItem": {
                                 if (!done.pokemon.has(i.name)) {
+                                    data.shops.push("Shop Mon");
+                                    data.pokemon.push(i.name);
                                     done.pokemon.add(i.name)
-                                    data.shops.push(i.name);
                                 }
                                 break
                             }
                             case "EggItem": {
-                                let isUsefull = !canHatch
-
                                 if (canHatch) {
                                     getEggsPokemon(t.region, i.type).forEach((p) => {
                                         if (!done.pokemon.has(p)) {
                                             data.pokemon.push(p)
                                             done.pokemon.add(p)
-                                            isUsefull = true
                                         }
                                     })
-                                }
-
-                                if (isUsefull) {
+                                } else {
                                     data.shops.push(i._displayName);
                                 }
                                 break;
                             }
                             case "BuyKeyItem": {
                                 i.gain(1);
+                                data.key.push(i._displayName);
+                                done.items.add(i.name)
+                                done.items.add(i._displayName)
                                 break;
                             }
                             default: {
@@ -438,6 +437,7 @@ function updateRouteInfo() {
                             }
                         }
                     })
+                    data.shops = [... new Set(data.shops)]
                 }
                 case 'Gym': {
                     checkGym(t.name, newData())
@@ -453,7 +453,6 @@ function updateRouteInfo() {
                 }
             }
         });
-
         return true;
     }
     function checkRoute(index, data) {
@@ -555,27 +554,32 @@ function updateRouteInfo() {
         return true
     }
     function checkQuest(questLine) {
-
         const current = questLine.curQuestObject()
+        switch (current.constructor.name) {
+            case 'DefeatDungeonQuest': {
+                const dungeon_index = GameConstants.RegionDungeons.flat().indexOf(current.dungeon);
+                const current_clear = App.game.statistics.dungeonsCleared[dungeon_index]()
 
-        if (current.dungeon) {
-            const dungeon_index = GameConstants.RegionDungeons.flat().indexOf(current.dungeon);
-            const current_clear = App.game.statistics.dungeonsCleared[dungeon_index]()
-
-            if (current_clear > 0) {
-                App.game.statistics.dungeonsCleared[dungeon_index](current_clear + 1)
+                if (current_clear > 0) {
+                    App.game.statistics.dungeonsCleared[dungeon_index](current_clear + 1)
+                }
+                break;
             }
-        } else if (current.gymTown) {
-            const gym_index = GameConstants.getGymIndex(current.gymTown)
-            const current_clear = App.game.statistics.gymsDefeated[gym_index]()
+            case 'DefeatGymQuest': {
+                const gym_index = GameConstants.getGymIndex(current.gymTown)
+                const current_clear = App.game.statistics.gymsDefeated[gym_index]()
 
-            if (current_clear > 0) {
-                App.game.statistics.gymsDefeated[gym_index](current_clear + 1);
+                if (current_clear > 0) {
+                    App.game.statistics.gymsDefeated[gym_index](current_clear + 1);
+                }
+                break;
+            }
+            case 'TalkToNPCQuest': {
+                current.npc.talkedTo(true)
+                console.log(current)
+                break;
             }
         }
-
-        // console.log(questLine.curQuestObject())
-
         return questLine.state() === QuestLineState.ended
     }
 
@@ -598,6 +602,7 @@ function updateRouteInfo() {
                 }
 
                 // backtrack
+                let backtrack = 0;
                 for (let i = 0; i < rdx; i++) {
                     const r = routes[i];
                     const data = newData();
@@ -613,9 +618,11 @@ function updateRouteInfo() {
                         data.region = SubRegions.getSubRegionById(r.region, r.subRegion || 0).name
                         data.area = r.routeName.replace(`${data.region} Route`, "") + ' (fishing rod)'
                         datas.push(data)
+                        backtrack++;
                     }
                 }
-                break;
+
+                return backtrack;
             }
             case KeyItemType.Mystery_egg: {
                 canHatch = true;
@@ -640,9 +647,10 @@ function updateRouteInfo() {
                 })
 
                 datas.push(data)
-                break;
+                return 1;
             }
         }
+        return 0;
     }
     //#endregion
 
@@ -651,8 +659,7 @@ function updateRouteInfo() {
     const dungeons = GameConstants.RegionDungeons[region]
     const gyms = GameConstants.RegionGyms[region]
     const battles = GameConstants.TemporaryBattles
-    const quests = App.game.quests.questLines()
-    const keys = new Set(App.game.keyItems.itemList)
+    const keys = new Set(App.game.keyItems.itemList.slice(3))
 
     let idx = tdx = rdx = ddx = gdx = bdx = 0, qdx = 1;
 
@@ -679,10 +686,10 @@ function updateRouteInfo() {
         for (k of keys) {
             if (k.isUnlocked()) {
                 if (!done.items.has(k.displayName)) {
-                    datas[idx].key.push(k.displayName);
+                    datas[datas.length - 1].key.push(k.displayName);
                     done.items.add(k.displayName);
                 }
-                unlockKeyItems(k.id);
+                idx += unlockKeyItems(k.id);
                 keys.delete(k)
             }
         }
