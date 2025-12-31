@@ -4,6 +4,7 @@ const done = {
     pokemon: new Set(),
     items: new Set(),
     battle: new Set(),
+    dungeon: new Set()
 }
 
 /* overrides */ {
@@ -14,6 +15,7 @@ const done = {
 function updateRouteInfo() {
     const region = GameConstants.Region.kanto;
     const datas = regionGuide[region] = [];
+    let canFish = canHatch = false;
 
     function newData() {
         return {
@@ -29,9 +31,15 @@ function updateRouteInfo() {
     //#region Calculators
     function getRegionFromTown(town) {
         const t = TownList[town]
-        if (!t) 
+        if (!t)
             return ''
         return SubRegions.getSubRegionById(t.region, t.subRegion || 0).name
+    }
+    function getEggsPokemon(region, type) {
+        if (type != GameConstants.EggItemType.Mystery_egg)
+            return App.game.breeding.hatchList[type][region]
+        else
+            return Object.values(App.game.breeding.hatchList).flatMap(_=>_[region])
     }
 
     function checkTown(index, data) {
@@ -58,17 +66,32 @@ function updateRouteInfo() {
                                 }
                                 break
                             }
+                            case "EggItem": {
+                                let isUsefull = !canHatch
+
+                                if (canHatch) {
+                                    getEggsPokemon(t.region, i.type).forEach((p) => {
+                                        if (!done.pokemon.has(p)) {
+                                            data.pokemon.push(p)
+                                            done.pokemon.add(p)
+                                            isUsefull = true
+                                        }
+                                    })
+                                }
+
+                                if (isUsefull) {
+                                    data.shops.push(i._displayName);
+                                }
+                                break;
+                            }
                             case "BuyKeyItem": {
                                 i.gain(1);
-                                done.items.add(i.name)
-                                done.items.add(i._displayName)
-                                data.key.push(i._displayName);
+                                break;
                             }
                             default: {
                                 if (!done.items.has(i.name)) {
                                     i.gain(1);
                                     done.items.add(i.name)
-                                    done.items.add(i._displayName)
                                     data.shops.push(i._displayName);
                                 }
                             }
@@ -81,6 +104,10 @@ function updateRouteInfo() {
                 }
                 case 'TemporaryBattle': {
                     checkBattle(c.name, newData())
+                    break
+                }
+                case 'MoveToDungeon': {
+                    checkDungeon(c.dungeon.name, newData())
                     break
                 }
             }
@@ -106,16 +133,27 @@ function updateRouteInfo() {
             }
         })
 
+        if (canFish) {
+            r.pokemon.water.forEach(p => {
+                if (!done.pokemon.has(p)) {
+                    data.pokemon.push(p)
+                    done.pokemon.add(p)
+                }
+            })
+        }
+
         App.game.statistics.routeKills[r.region][r.number](100)
         return true
     }
     function checkDungeon(index, data) {
         const d = dungeonList[index];
-        if (!d.isUnlocked()) {
+        if (!d || !d.isUnlocked()) {
             return false
+        } if (done.dungeon.has(index)) {
+            return true
         }
 
-        data.region = getRegionFromTown(index) 
+        data.region = getRegionFromTown(index)
         data.area = d.name;
         datas.push(data)
 
@@ -136,6 +174,7 @@ function updateRouteInfo() {
 
         const dungeon_index = GameConstants.RegionDungeons.flat().indexOf(d.name);
         App.game.statistics.dungeonsCleared[dungeon_index](1000)
+        done.dungeon.add(index);
         return true;
     }
     function checkGym(index, data) {
@@ -146,7 +185,7 @@ function updateRouteInfo() {
             return true
         }
 
-        data.region = getRegionFromTown(index) 
+        data.region = getRegionFromTown(index)
         data.area = `${g.town}'s gym`
         datas.push(data)
 
@@ -164,7 +203,7 @@ function updateRouteInfo() {
             return true
         }
 
-        data.region = getRegionFromTown(b.optionalArgs.returnTown || b.parent.name) 
+        data.region = getRegionFromTown(b.optionalArgs.returnTown || b.parent.name)
         data.area = /*b.optionalArgs.displayName ||*/ b.name
         datas.push(data)
 
@@ -188,7 +227,7 @@ function updateRouteInfo() {
         } else if (current.gymTown) {
             const gym_index = GameConstants.getGymIndex(current.gymTown)
             const current_clear = App.game.statistics.gymsDefeated[gym_index]()
-            
+
             if (current_clear > 0) {
                 App.game.statistics.gymsDefeated[gym_index](current_clear + 1);
             }
@@ -197,6 +236,72 @@ function updateRouteInfo() {
         // console.log(questLine.curQuestObject())
 
         return questLine.state() === QuestLineState.ended
+    }
+
+    function unlockKeyItems(itemId) {
+        switch (itemId) {
+            case KeyItemType.Super_rod: {
+                canFish = true;
+
+                // check route 12
+                {
+                    const data = datas[datas.length - 1]
+                    const r = routes[rdx - 1];
+
+                    r.pokemon.water.forEach(p => {
+                        if (!done.pokemon.has(p)) {
+                            data.pokemon.push(p)
+                            done.pokemon.add(p)
+                        }
+                    })
+                }
+
+                // backtrack
+                for (let i = 0; i < rdx; i++) {
+                    const r = routes[i];
+                    const data = newData();
+
+                    r.pokemon.water.forEach(p => {
+                        if (!done.pokemon.has(p)) {
+                            data.pokemon.push(p)
+                            done.pokemon.add(p)
+                        }
+                    })
+
+                    if (data.pokemon.length > 0) {
+                        data.region = SubRegions.getSubRegionById(r.region, r.subRegion || 0).name
+                        data.area = r.routeName.replace(`${data.region} Route`, "") + ' (fishing rod)'
+                        datas.push(data)
+                    }
+                }
+                break;
+            }
+            case KeyItemType.Mystery_egg: {
+                canHatch = true;
+
+                const data = newData();
+                data.region = SubRegions.getSubRegionById(region, 0).name;
+                data.area = "Day Care";
+
+                getEggsPokemon(region, GameConstants.EggItemType.Mystery_egg).forEach((p) => {
+                    if (!done.pokemon.has(p)) {
+                        data.pokemon.push(p)
+                        done.pokemon.add(p)
+                        isUsefull = true
+                    }
+                })
+
+                App.game.breeding.hatchList[region].flat().forEach((p) => {
+                    if (!done.pokemon.has(p)) {
+                        data.pokemon.push(p)
+                        done.pokemon.add(p)
+                    }
+                })
+
+                datas.push(data)
+                break;
+            }
+        }
     }
     //#endregion
 
@@ -212,7 +317,7 @@ function updateRouteInfo() {
 
     do {
 
-        App.game.quests.questLines().forEach((q)=>{
+        App.game.quests.questLines().forEach((q) => {
             if (q.state() === QuestLineState.started) {
                 checkQuest(q)
             }
@@ -236,6 +341,7 @@ function updateRouteInfo() {
                     datas[idx].key.push(k.displayName);
                     done.items.add(k.displayName);
                 }
+                unlockKeyItems(k.id);
                 keys.delete(k)
             }
         }
