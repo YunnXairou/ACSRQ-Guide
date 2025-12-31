@@ -1,5 +1,5 @@
 const { applyDatatables } = require('./datatables');
-const { updateRouteInfo } = require('./data');
+const { instance } = require('./guide')
 
 const applyBindings = ko.observable(false);
 
@@ -20,7 +20,7 @@ $(document).ready(() => {
     }
   });
 
-  updateRouteInfo();
+  instance.updateRouteInfo();
 
   const pageElement = $('#wiki-page-content');
   $.get("./pages/region.html", (data) => {

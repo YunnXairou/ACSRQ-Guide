@@ -5,8 +5,15 @@ function swap(array, index_a, index_b)
     array[index_b] = tmp
 }
 
-TemporaryBattleList['Snorlax route 16'].requirements.push(new RouteKillRequirement(10, GameConstants.Region.kanto, 15)) // unlock Snorlax 16 with route 15 completion
-TownList["Fuchsia City"].requirements.push(new RouteKillRequirement(10, 0, 18))
+//#region Kanto
+TemporaryBattleList['Snorlax route 16'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 15))
+TownList["Fuchsia City"].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 18))
+TownList['Two Island'].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Mt. Ember Summit')))
+TownList['Three Island'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 28))
+TownList['Client Island'].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Berry Forest')))
+Routes.getRoute(GameConstants.Region.kanto, 21).requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Berry Forest')))
+GymList['Viridian City'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 21))
+//#endregion
 
 swap(GameConstants.TemporaryBattles, 6, 7) // exchange Snorlax 16 and Blue 5
 swap(GameConstants.TemporaryBattles, 5, 6) // exchange Snorlax 12 and Blue 5

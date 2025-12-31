@@ -9,7 +9,7 @@ window.Guide = {
     ...require('./datatables'),
     ...require('./manual'),
     ...require('../pokeclicker-wiki/scripts/game'),
-    ...require('./data'),
+    ...require('./guide'),
     ...require('./navigation'),
 }
 
