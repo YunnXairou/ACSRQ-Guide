@@ -7,10 +7,13 @@ const cache = {
 }
 
 /* overrides */ {
+    App.game.quests.getQuestLine('Tutorial Quests').state(QuestLineState.ended);
+
     KeyItemController.showGainModal = function () { };
     ClientRequirement.prototype.isCompleted = function () { return true }
     SpecialEventRequirement.prototype.isCompleted = function () { return false }
     PartyPokemon.prototype.checkForLevelEvolution = function () { }; // prevent pokemon from evolving with level.
+    Party.prototype.calculatePokemonAttack = function () { }; 
 }
 
 //#region Data Filler
@@ -22,7 +25,7 @@ function addPokemon(pokemon) {
     cache.pokemon.add(pokemon)
 
     App.game.party.gainPokemonByName(pokemon)
-
+    
     if (useRealEvo) {
         const pkm = App.game.party.getPokemonByName(pokemon)
         if (pkm.evolutions == null || pkm.evolutions.length == 0)
@@ -303,35 +306,50 @@ class QuestlineData {
     }
 
     complete() {
-        if (this._ref.state() === QuestLineState.started) {
-            const current = this._ref.curQuestObject()
-            switch (current.constructor.name) {
-                case 'DefeatDungeonQuest': {
-                    if (!queue.has(`d.${current.dungeon}`)) {
-                        GameHelper.incrementObservable(App.game.statistics.dungeonsCleared[GameConstants.getDungeonIndex(current.dungeon)]);
+        const q = this._ref;
+
+        switch(q.state())
+        {
+            case QuestLineState.inactive: {
+                if (q.requirement && !q.requirement.isCompleted()) {
+                    return false;
+                }
+                if (q.bulletinBoard !== GameConstants.BulletinBoards.All) {
+                    return false;
+                }
+                quest.beginQuest()
+            }
+            case QuestLineState.started: {
+                const current = q.curQuestObject()
+                switch (current.constructor.name) {
+                    case 'DefeatDungeonQuest': {
+                        if (!queue.has(`d.${current.dungeon}`)) {
+                            GameHelper.incrementObservable(App.game.statistics.dungeonsCleared[GameConstants.getDungeonIndex(current.dungeon)]);
+                        }
+                        break;
                     }
-                    break;
-                }
-                case 'DefeatGymQuest': {
-                    if (!queue.has(`g.${current.gymTown}`)) {
-                        GameHelper.incrementObservable(App.game.statistics.gymsDefeated[GameConstants.getGymIndex(current.gymTown)]);
+                    case 'DefeatGymQuest': {
+                        if (!queue.has(`g.${current.gymTown}`)) {
+                            GameHelper.incrementObservable(App.game.statistics.gymsDefeated[GameConstants.getGymIndex(current.gymTown)]);
+                        }
+                        break;
                     }
-                    break;
+                    case 'TalkToNPCQuest': {
+                        current.npc.talkedTo(true)
+                        break;
+                    }
+                    default:
+                        // console.log(current)
                 }
-                case 'TalkToNPCQuest': {
-                    current.npc.talkedTo(true)
-                    break;
-                }
-                default:
-                // console.log(current)
+                break
             }
         }
-        return this._ref.state() === QuestLineState.ended
+        return q.state() === QuestLineState.ended
     }
 }
 class KeyItemData {
     static add(item) {
-        queue.set(`i.${KeyItemType[item.id]}`, new this(item))
+        queue.set(`i.${KeyItemType[item.name]}`, new this(item))
     }
 
     constructor(item) {
@@ -352,7 +370,7 @@ class KeyItemData {
 
         data.key.push(this._ref.displayName)
 
-        switch (this._ref.id) {
+        switch (this._ref.name) {
             case KeyItemType.Mystery_egg: {
                 const newData = {
                     region: data.region,
@@ -392,7 +410,7 @@ class ACSRQGuide {
                 TownData.add(town)
             }
 
-            for (const battle of Object.values(TemporaryBattleList).filter(battle => TownList[battle.optionalArgs.returnTown || battle.parent.name].region === region)) {
+            for (const battle of Object.values(TemporaryBattleList).filter(battle => TownList[battle.optionalArgs.returnTown || battle.parent?.name]?.region === region)) {
                 BattleData.add(battle)
             }
 
@@ -423,8 +441,7 @@ class ACSRQGuide {
             } while (!result.done)
 
             // cleanup
-
-            console.log(queue, 'cleanup')
+            console.log(queue)
         }
 
         setTimeout(() => {

@@ -40,7 +40,7 @@ function applyDatatables() {
             drawCallback: function() {
                 mergeGridCells()
             }
-        })
+        }).fnAdjustColumnSizing()
     } catch (e) { }
 })
 }
@@ -100,8 +100,6 @@ function mergeGridCells() {
                 rowspan = 1;
             }
         })
-
-        element.DataTables().fnAdjustColumnSizing()
     })
 }
 

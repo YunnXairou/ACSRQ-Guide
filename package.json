@@ -6,7 +6,7 @@
     "start": "node ./pokeclicker-wiki/start.js",
     "build": "browserify scripts/main.js -o bundle.js",
     "watch": "watchify scripts/main.js -o bundle.js",
-    "update": "git submodule update --init && git submodule update --remote && npm run build",
+    "update": "git submodule update --init && npm run build",
     "test": "eslint ./scripts"
   },
   "dependencies": {

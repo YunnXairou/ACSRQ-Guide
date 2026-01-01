@@ -9,25 +9,13 @@ themes.options.push(new SettingOption('Morph', 'morph'));
 themes.options.push(new SettingOption('Quartz', 'quartz'));
 themes.options.push(new SettingOption('Vapor', 'vapor'));
 themes.options.push(new SettingOption('Zephyr', 'zephyr'));
-
-const now = new Date();
-if (now.getMonth() == 3 && now.getDate() == 1) {
-  themes.options.forEach((t) => {
-  t.value = "sketchy";
-  });
-  themes.set("sketchy");
-  themes.options.push(new SettingOption("Definitely Not Sketchy", "sketchy"));
-}
 themes.options.sort((a, b) => (a.text).localeCompare(b.text));
 
 // Suppress game notifications
 Notifier.notify = () => {};
 
-// Ensure requirements are never satisfied so they are always shown
-Requirement.prototype.isCompleted = () => false;
-
-// Not sure why but this was causing an error on load after the v0.10.22 update
-SortModules = () => {};
+// Ensure weather never satisfies requirements so they are always shown
+Weather.currentWeather = () => -1;
 
 // Custom binds as these aren't loaded
 player = new Player();
@@ -74,12 +62,12 @@ BattleFrontierRunner.stage(100);
 BattleFrontierBattle.generateNewEnemy();
 AchievementHandler.initialize(multiplier, new Challenges());
 
+const now = new Date();
+DailyDeal.generateDeals(5, now);
 BerryDeal.generateDeals(now);
-GemDeals.generateDeals();
+GemDeal.generateDeals();
 ShardDeal.generateDeals();
-GenericDeal.generateDeals();
 SafariPokemonList.generateSafariLists(); // This needs to be after anything that generates shopmon due to Friend Safari calcs
-Weather.generateWeather(now);
 
 // Farm Simulator
 App.game.farming.plotList.forEach((p) => p.isUnlocked = true); // All plots unlocked
@@ -128,16 +116,14 @@ Settings.getSetting('theme').observableValue.subscribe(theme => {
 },{}],2:[function(require,module,exports){
 module.exports={
   "name": "pokeclicker",
-  "version": "0.10.25",
+  "version": "0.10.18",
   "description": "PokéClicker repository",
   "main": "index.js",
   "scripts": {
     "start": "cross-env NODE_ENV=development gulp",
-    "build": "cross-env NODE_ENV=development gulp build",
-    "test": "npm-run-all --continue-on-error test-scripts eslint stylelint",
-    "test-scripts": "gulp scripts && npm run vitest-nocoverage",
+    "test": "npm run ts-test && npm run eslint && npm run stylelint && npm run vitest",
+    "ts-test": "gulp scripts",
     "vitest": "vitest --run",
-    "vitest-nocoverage": "vitest --run --coverage false",
     "eslint": "eslint --ext ts ./src/scripts ./src/modules",
     "eslint-fix": "eslint --ext ts --fix ./src/scripts ./src/modules",
     "stylelint": "stylelint \"./src/**/*.less\" --cache",
@@ -154,7 +140,7 @@ module.exports={
   },
   "babel": {
     "presets": [
-      "@babel/preset-env"
+      "env"
     ]
   },
   "author": "RedSparr0w",
@@ -164,37 +150,40 @@ module.exports={
   },
   "homepage": "https://github.com/pokeclicker/pokeclicker#readme",
   "devDependencies": {
-    "@babel/core": "^7.0.0",
-    "@babel/preset-env": "^7.0.0",
-    "@babel/register": "^7.0.0",
     "@types/bootstrap": "^4.3.1",
     "@types/bootstrap-notify": "^3.1.34",
+    "@types/gtag.js": "0.0.4",
     "@types/intro.js": "^2.4.7",
     "@types/jquery": "^3.5.16",
     "@types/knockout": "^3.4.66",
     "@types/sortablejs": "^1.10.5",
     "@typescript-eslint/eslint-plugin": "^5.50.0",
     "@typescript-eslint/parser": "^5.50.0",
-    "@vitest/coverage-v8": "^3.1.3",
+    "@vitest/coverage-c8": "^0.29.8",
+    "babel-core": "^6.26.3",
+    "babel-preset-env": "^1.7.0",
+    "babel-register": "^6.26.0",
     "bootstrap-notify": "^3.1.3",
-    "browser-sync": "^3.0.2",
+    "browser-sync": "^2.28.3",
     "cross-env": "^7.0.2",
     "del": "^5.1.0",
     "es6-promise": "^4.2.8",
-    "eslint": "^7.32.0",
     "eslint-config-airbnb-typescript": "^17.0.0",
     "eslint-plugin-import": "^2.22.1",
-    "gh-pages": "^6.1.1",
+    "gh-pages": "^4.0.0",
     "gulp": "^4.0.2",
-    "gulp-autoprefixer": "^8.0.0",
+    "gulp-autoprefixer": "^7.0.1",
     "gulp-changed": "^4.0.2",
     "gulp-clean": "^0.4.0",
-    "gulp-clean-css": "^4.3.0",
     "gulp-concat": "^2.6.0",
+    "gulp-connect": "^5.7.0",
     "gulp-ejs": "^5.1.0",
     "gulp-file-include": "^2.2.2",
     "gulp-filter": "^6.0.0",
-    "gulp-less": "^5.0.0",
+    "gulp-html-import": "^0.0.2",
+    "gulp-less": "^4.0.1",
+    "gulp-minify-css": "^1.2.1",
+    "gulp-minify-html": "^1.0.4",
     "gulp-plumber": "^1.2.1",
     "gulp-rename": "^2.0.0",
     "gulp-replace": "^1.0.0",
@@ -203,22 +192,23 @@ module.exports={
     "gulp-stream-to-promise": "^0.1.0",
     "gulp-strip-debug": "^3.0.0",
     "gulp-typescript": "^5.0.1",
+    "gulp-util": "^3.0.7",
     "husky": "^4.3.8",
-    "jsdom": "^25.0.0",
-    "npm-run-all2": "^6.2.0",
+    "natives": "^1.1.6",
     "postcss-less": "^6.0.0",
     "stylelint": "^15.10.1",
     "stylelint-config-standard-less": "^1.0.0",
     "ts-loader": "^8.0.4",
     "ts-node": "^10.9.1",
     "typescript": "^4.9.5",
-    "vitest": "^3.1.3",
+    "vitest": "^0.29.8",
     "webpack": "^5.76.0",
     "webpack-cli": "^5.0.1",
-    "webpack-stream": "^7.0.0"
+    "webpack-stream": "^6.1.0"
   },
   "dependencies": {
     "bootstrap": "^4.5.3",
+    "eslint": "^7.4.0",
     "i18next": "^21.9.2",
     "i18next-browser-languagedetector": "^6.1.5",
     "i18next-chained-backend": "^3.1.0",
@@ -228,9 +218,6 @@ module.exports={
     "knockout": "^3.5.1",
     "popper.js": "^1.16.0",
     "sortablejs": "^1.10.2"
-  },
-  "overrides": {
-    "clean-css": ">=5.3.1"
   }
 }
 
@@ -277,7 +264,7 @@ function applyDatatables() {
             drawCallback: function() {
                 mergeGridCells()
             }
-        })
+        }).fnAdjustColumnSizing()
     } catch (e) { }
 })
 }
@@ -337,8 +324,6 @@ function mergeGridCells() {
                 rowspan = 1;
             }
         })
-
-        element.DataTables().fnAdjustColumnSizing()
     })
 }
 
@@ -357,10 +342,13 @@ const cache = {
 }
 
 /* overrides */ {
+    App.game.quests.getQuestLine('Tutorial Quests').state(QuestLineState.ended);
+
     KeyItemController.showGainModal = function () { };
     ClientRequirement.prototype.isCompleted = function () { return true }
     SpecialEventRequirement.prototype.isCompleted = function () { return false }
     PartyPokemon.prototype.checkForLevelEvolution = function () { }; // prevent pokemon from evolving with level.
+    Party.prototype.calculatePokemonAttack = function () { }; 
 }
 
 //#region Data Filler
@@ -372,7 +360,7 @@ function addPokemon(pokemon) {
     cache.pokemon.add(pokemon)
 
     App.game.party.gainPokemonByName(pokemon)
-
+    
     if (useRealEvo) {
         const pkm = App.game.party.getPokemonByName(pokemon)
         if (pkm.evolutions == null || pkm.evolutions.length == 0)
@@ -653,35 +641,50 @@ class QuestlineData {
     }
 
     complete() {
-        if (this._ref.state() === QuestLineState.started) {
-            const current = this._ref.curQuestObject()
-            switch (current.constructor.name) {
-                case 'DefeatDungeonQuest': {
-                    if (!queue.has(`d.${current.dungeon}`)) {
-                        GameHelper.incrementObservable(App.game.statistics.dungeonsCleared[GameConstants.getDungeonIndex(current.dungeon)]);
+        const q = this._ref;
+
+        switch(q.state())
+        {
+            case QuestLineState.inactive: {
+                if (q.requirement && !q.requirement.isCompleted()) {
+                    return false;
+                }
+                if (q.bulletinBoard !== GameConstants.BulletinBoards.All) {
+                    return false;
+                }
+                quest.beginQuest()
+            }
+            case QuestLineState.started: {
+                const current = q.curQuestObject()
+                switch (current.constructor.name) {
+                    case 'DefeatDungeonQuest': {
+                        if (!queue.has(`d.${current.dungeon}`)) {
+                            GameHelper.incrementObservable(App.game.statistics.dungeonsCleared[GameConstants.getDungeonIndex(current.dungeon)]);
+                        }
+                        break;
                     }
-                    break;
-                }
-                case 'DefeatGymQuest': {
-                    if (!queue.has(`g.${current.gymTown}`)) {
-                        GameHelper.incrementObservable(App.game.statistics.gymsDefeated[GameConstants.getGymIndex(current.gymTown)]);
+                    case 'DefeatGymQuest': {
+                        if (!queue.has(`g.${current.gymTown}`)) {
+                            GameHelper.incrementObservable(App.game.statistics.gymsDefeated[GameConstants.getGymIndex(current.gymTown)]);
+                        }
+                        break;
                     }
-                    break;
+                    case 'TalkToNPCQuest': {
+                        current.npc.talkedTo(true)
+                        break;
+                    }
+                    default:
+                        // console.log(current)
                 }
-                case 'TalkToNPCQuest': {
-                    current.npc.talkedTo(true)
-                    break;
-                }
-                default:
-                // console.log(current)
+                break
             }
         }
-        return this._ref.state() === QuestLineState.ended
+        return q.state() === QuestLineState.ended
     }
 }
 class KeyItemData {
     static add(item) {
-        queue.set(`i.${KeyItemType[item.id]}`, new this(item))
+        queue.set(`i.${KeyItemType[item.name]}`, new this(item))
     }
 
     constructor(item) {
@@ -702,7 +705,7 @@ class KeyItemData {
 
         data.key.push(this._ref.displayName)
 
-        switch (this._ref.id) {
+        switch (this._ref.name) {
             case KeyItemType.Mystery_egg: {
                 const newData = {
                     region: data.region,
@@ -742,7 +745,7 @@ class ACSRQGuide {
                 TownData.add(town)
             }
 
-            for (const battle of Object.values(TemporaryBattleList).filter(battle => TownList[battle.optionalArgs.returnTown || battle.parent.name].region === region)) {
+            for (const battle of Object.values(TemporaryBattleList).filter(battle => TownList[battle.optionalArgs.returnTown || battle.parent?.name]?.region === region)) {
                 BattleData.add(battle)
             }
 
@@ -773,8 +776,7 @@ class ACSRQGuide {
             } while (!result.done)
 
             // cleanup
-
-            console.log(queue, 'cleanup')
+            console.log(queue)
         }
 
         setTimeout(() => {
@@ -833,16 +835,16 @@ KeyItems.prototype.initialize = function() {
     keyItemsInitialize.call(this);
 
     this.itemList = this.itemList.map(item => {
-        switch (item.id) {
+        switch (item.name) {
             // unlock wailmer pail with route 11 completion
             case KeyItemType.Wailmer_pail:
                 item.unlocker.dispose();
-                return new KeyItem(item.id, item.description,
+                return new KeyItem(item.name, item.description,
                     () => App.game.statistics.routeKills[GameConstants.Region.kanto][11]() >= GameConstants.ROUTE_KILLS_NEEDED,
                     false, item.unlockRewardOnClose, item.displayName, this.unlockRewardOnUnlock);
             case KeyItemType.Mystery_egg:
                 item.unlocker.dispose();
-                return new KeyItem(item.id, item.description,
+                return new KeyItem(item.name, item.description,
                     () => App.game.statistics.routeKills[GameConstants.Region.kanto][5]() >= GameConstants.ROUTE_KILLS_NEEDED,
                     false, item.unlockRewardOnClose, item.displayName, this.unlockRewardOnUnlock);
             default:

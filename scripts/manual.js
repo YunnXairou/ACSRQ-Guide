@@ -23,16 +23,16 @@ KeyItems.prototype.initialize = function() {
     keyItemsInitialize.call(this);
 
     this.itemList = this.itemList.map(item => {
-        switch (item.id) {
+        switch (item.name) {
             // unlock wailmer pail with route 11 completion
             case KeyItemType.Wailmer_pail:
                 item.unlocker.dispose();
-                return new KeyItem(item.id, item.description,
+                return new KeyItem(item.name, item.description,
                     () => App.game.statistics.routeKills[GameConstants.Region.kanto][11]() >= GameConstants.ROUTE_KILLS_NEEDED,
                     false, item.unlockRewardOnClose, item.displayName, this.unlockRewardOnUnlock);
             case KeyItemType.Mystery_egg:
                 item.unlocker.dispose();
-                return new KeyItem(item.id, item.description,
+                return new KeyItem(item.name, item.description,
                     () => App.game.statistics.routeKills[GameConstants.Region.kanto][5]() >= GameConstants.ROUTE_KILLS_NEEDED,
                     false, item.unlockRewardOnClose, item.displayName, this.unlockRewardOnUnlock);
             default:
