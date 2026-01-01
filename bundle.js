@@ -1,108 +1,4 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
-// Applying datatables to all tables on the page (with some exceptions)
-const applyDatatables = () => {
-    // Any table with headers
-    $('.table:has(thead)').each((i, element) => {
-        try {
-            const rows = element.getElementsByTagName('tr').length;
-            // Don't process these as datatables cannot handle them
-            const doNotProcess = element.querySelectorAll('[colspan],[rowspan],.no-data-tables').length || element.classList.contains('no-data-tables');
-
-            // Don't process anything with less than 40 rows
-            if (doNotProcess) return;
-
-            // Bootstrap style tables, with responsive table
-            let dom = `<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>><'row table-responsive'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7 text-center'p>>`;
-                // How many items per page
-            let pageLength = 25;
-            // How to order our pages
-            let order = [[0, 'asc']];
-
-            // If we have less than 40 rows, we don't need pagination, but table will still be sortable
-            if (rows < 40) {
-                pageLength = 40;
-                dom = `<'row'<'col-sm-12 col-md-6'><'col-sm-12 col-md-6'>><'row table-responsive'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'><'col-sm-12 col-md-7 text-center'>>`
-                order = [];
-            }
-
-            $(element).DataTable({
-                // Remember page/search/order
-                stateSave: true,
-                stateSaveCallback: function(settings, data) {
-                    sessionStorage.setItem(`DataTables_${Wiki.pageType()}_${Wiki.pageName()}_${i}`, JSON.stringify(data));
-                    // Only keep tables position if on same page type/parent
-                    Object.keys(sessionStorage).forEach((key) => {
-                        if (key.startsWith('DataTables') && !key.includes(Wiki.pageType())) {
-                            delete sessionStorage[key];
-                        }
-                    })
-                },
-                stateLoadCallback: function(settings) {
-                    return JSON.parse(sessionStorage.getItem(`DataTables_${Wiki.pageType()}_${Wiki.pageName()}_${i}`) || '{}');
-                },
-                dom,
-                pageLength,
-                order,
-                // Our custom page implementation
-                pagingType: 'simple_numbers_no_ellipses',
-                // Adjust text
-                language: {
-                  paginate: {
-                    previous: '←',
-                    next: '→',
-                  }
-                }
-            });
-
-            // Setup a custom handler to reset sort order after descending instead of going back to ascending
-            // Accomplished by finding and intercepting the mutation of the sorting th's class from desc to asc
-            const tableId = element.id;
-            const callback = (mutationList) => {
-                for (const mutation of mutationList) {
-                    if (mutation.type === "attributes" &&
-                        mutation.attributeName == "class" &&
-                        mutation.oldValue.includes("sorting_desc") &&
-                        mutation.target.classList.contains("sorting_asc")
-                    ) {
-                        $(`#${tableId}`).DataTable().order.neutral().draw();
-                    }
-                }
-            };
-            document.querySelectorAll(`#${tableId} th.sorting`).forEach((el) => {
-                new MutationObserver(callback).observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
-            });
-        } catch(e){}
-    });
-}
-
-/* CUSTOM DATA TABLES STUFF */
-
-// Hide any error messages that may appear (remove this line for debugging)
-$.fn.dataTable.ext.errMode = 'none';
-
-// Adjust how page numbers are shown
-$.fn.DataTable.ext.pager.simple_numbers_no_ellipses = (page, pages) => {
-    // how many buttons total (excluding next/prev buttons)
-    const buttons = 5; // Limit to 5 so it should be fine on mobile
-    const half = Math.floor( buttons / 2 );
-
-    page = Math.max(0, page - half);
-    const count = Math.min(pages - page, buttons);
-    const numbers = [];
-    for (let i = 0; i < count; i++){
-        numbers.push(page++);
-    }
-
-    numbers.DT_el = 'span';
-
-    return [ 'previous', numbers, 'next' ];
-};
-
-module.exports = {
-    applyDatatables,
-}
-
-},{}],2:[function(require,module,exports){
 /*
 Initializing anything we need from the game files
 */
@@ -229,7 +125,7 @@ Settings.getSetting('theme').observableValue.subscribe(theme => {
   document.body.className = `no-select ${theme}`;
 });
 
-},{}],3:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 module.exports={
   "name": "pokeclicker",
   "version": "0.10.25",
@@ -338,8 +234,74 @@ module.exports={
   }
 }
 
-},{}],4:[function(require,module,exports){
-const { applyDatatables } = require('../pokeclicker-wiki/scripts/datatables')
+},{}],3:[function(require,module,exports){
+function applyDatatables() {
+    // Any table with headers
+    $('.table:has(thead)').each((i, element) => {
+    try {
+        const rows = element.getElementsByTagName('tr').length;
+        // Don't process these as datatables cannot handle them
+        const doNotProcess = element.querySelectorAll('[colspan],[rowspan],.no-data-tables').length || element.classList.contains('no-data-tables');
+
+        // Don't process anything with less than 40 rows
+        if (doNotProcess) return;
+
+        // Bootstrap style tables, with responsive table
+        let dom = `<'row'<'col-sm-12 col-md-6'i><'col-sm-12 col-md-6'p>><'row table-responsive'<'col-sm-12'tr>>`;
+        // How many items per page
+        let pageLength = 20;
+
+        // If we have less than 40 rows, we don't need pagination, but table will still be sortable
+        if (rows < 40) {
+            pageLength = 40;
+            dom = `<'row'<'col-sm-12 col-md-6'><'col-sm-12 col-md-6'>><'row table-responsive'<'col-sm-12'tr>>`
+        }
+
+        $(element).DataTable({
+            // Remember page/search/order
+            stateSave: true,
+            dom,
+            pageLength,
+            // Adjust text
+            language: {
+                paginate: {
+                    previous: '←',
+                    next: '→',
+                }
+            },
+            searching:false,
+            ordering:false,
+            drawCallback: function() {
+                mergeGridCells()
+            }
+        })
+    } catch (e) { }
+})
+}
+
+/* CUSTOM DATA TABLES STUFF */
+
+// Hide any error messages that may appear (remove this line for debugging)
+$.fn.dataTable.ext.errMode = 'none';
+
+// Adjust how page numbers are shown
+$.fn.DataTable.ext.pager.simple_numbers_no_ellipses = (page, pages) => {
+    // how many buttons total (excluding next/prev buttons)
+    const buttons = 5; // Limit to 5 so it should be fine on mobile
+    const half = Math.floor( buttons / 2 );
+
+    page = Math.max(0, page - half);
+    const count = Math.min(pages - page, buttons);
+    const numbers = [];
+    for (let i = 0; i < count; i++){
+        numbers.push(page++);
+    }
+
+    numbers.DT_el = 'span';
+
+    return [ 'previous', numbers, 'next' ];
+};
+
 
 function mergeGridCells() {
     var dimension_col = 0;
@@ -353,7 +315,7 @@ function mergeGridCells() {
             // find the td of the correct column (determined by the dimension_col set above)
             var dimension_td = $(this).find(`td:nth-child(${dimension_col + 1})`);
 
-            if(!dimension_td) {
+            if (!dimension_td) {
                 return;
             }
 
@@ -373,50 +335,14 @@ function mergeGridCells() {
             }
         })
     })
-    //         var dimension_cells = new Array();
-    //         var dimension_col = null;
-    //         var columnCount = $(element, "tr:first th").length;
-
-    // console.log(columnCount)
-
-    //         for (dimension_col = 0; dimension_col < columnCount; dimension_col++) {
-    //             // first_instance holds the first instance of identical td
-    //             var first_instance = null;
-    //             var rowspan = 1;
-    //             // iterate through rows
-    //             $("#example").find('tr').each(function () {
-
-    //                 // find the td of the correct column (determined by the dimension_col set above)
-    //                 var dimension_td = $(this).find('td:nth-child(' + dimension_col + ')');
-
-    //                 if (first_instance == null) {
-    //                     // must be the first row
-    //                     first_instance = dimension_td;
-    //                 } else if (dimension_td.text() == first_instance.text()) {
-    //                     // the current td is identical to the previous
-    //                     // remove the current td
-    //                     dimension_td.remove();
-    //                     ++rowspan;
-    //                     // increment the rowspan attribute of the first instance
-    //                     first_instance.attr('rowspan', rowspan);
-    //                 } else {
-    //                     // this cell is different from the last
-    //                     first_instance = dimension_td;
-    //                     rowspan = 1;
-    //                 }
-    //             });
-    //         }
-    //     })
 }
 
 module.exports = {
-    applyDatatables: function () {
-        applyDatatables();
-        mergeGridCells();
-    },
+    applyDatatables,
+    mergeGridCells
 }
 
-},{"../pokeclicker-wiki/scripts/datatables":1}],5:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 const useRealEvo = false;
 
 const queue = new Map()
@@ -588,7 +514,7 @@ class GymData extends Data {
     }
 
     constructor(gym, town) {
-        super(town, town ? `${gym.town}'s gym` : gym.town)
+        super(town, TownList[gym.town] ? `${gym.town}'s gym` : gym.town)
         this._ref = gym;
         this._refTown = town;
     }
@@ -804,7 +730,7 @@ class ACSRQGuide {
             KeyItemData.add(item)
         }
 
-        for (let region = GameConstants.Region.kanto; region <= GameConstants.Region.kanto; region++) {
+        for (let region = GameConstants.Region.kanto; region < GameConstants.MAX_AVAILABLE_REGION; region++) {
             this.regionsData[region] = []
 
             // collect TownData
@@ -858,8 +784,7 @@ module.exports = {
     getRegion: instance.getRegion.bind(instance),
 }
 
-
-},{}],6:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 // import our version etc
 const package = require('../pokeclicker/package.json');
 
@@ -876,7 +801,7 @@ window.Guide = {
 }
 
 Requirement.prototype.isCompleted = oldComplete;
-},{"../pokeclicker-wiki/scripts/game":2,"../pokeclicker/package.json":3,"./datatables":4,"./guide":5,"./manual":7,"./navigation":8}],7:[function(require,module,exports){
+},{"../pokeclicker-wiki/scripts/game":1,"../pokeclicker/package.json":2,"./datatables":3,"./guide":4,"./manual":6,"./navigation":7}],6:[function(require,module,exports){
 function swap(array, index_a, index_b)
 {
     const tmp = array[index_a]
@@ -920,7 +845,7 @@ KeyItems.prototype.initialize = function() {
     });
 };
 
-},{}],8:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 const { applyDatatables } = require('./datatables');
 const { instance } = require('./guide')
 
@@ -952,4 +877,4 @@ $(document).ready(() => {
   })
 });
 
-},{"./datatables":4,"./guide":5}]},{},[6]);
+},{"./datatables":3,"./guide":4}]},{},[5]);

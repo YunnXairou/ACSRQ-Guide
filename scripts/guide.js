@@ -169,7 +169,7 @@ class GymData extends Data {
     }
 
     constructor(gym, town) {
-        super(town, town ? `${gym.town}'s gym` : gym.town)
+        super(town, TownList[gym.town] ? `${gym.town}'s gym` : gym.town)
         this._ref = gym;
         this._refTown = town;
     }
@@ -385,7 +385,7 @@ class ACSRQGuide {
             KeyItemData.add(item)
         }
 
-        for (let region = GameConstants.Region.kanto; region <= GameConstants.Region.kanto; region++) {
+        for (let region = GameConstants.Region.kanto; region < GameConstants.MAX_AVAILABLE_REGION; region++) {
             this.regionsData[region] = []
 
             // collect TownData
@@ -438,4 +438,3 @@ module.exports = {
     instance,
     getRegion: instance.getRegion.bind(instance),
 }
-
