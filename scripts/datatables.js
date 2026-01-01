@@ -34,6 +34,9 @@ function applyDatatables() {
             },
             searching:false,
             ordering:false,
+            hideEmptyCols:{
+                perPage: true,
+            },
             drawCallback: function() {
                 mergeGridCells()
             }
@@ -97,6 +100,8 @@ function mergeGridCells() {
                 rowspan = 1;
             }
         })
+
+        element.DataTables().fnAdjustColumnSizing()
     })
 }
 

@@ -271,6 +271,9 @@ function applyDatatables() {
             },
             searching:false,
             ordering:false,
+            hideEmptyCols:{
+                perPage: true,
+            },
             drawCallback: function() {
                 mergeGridCells()
             }
@@ -334,6 +337,8 @@ function mergeGridCells() {
                 rowspan = 1;
             }
         })
+
+        element.DataTables().fnAdjustColumnSizing()
     })
 }
 
@@ -730,10 +735,9 @@ class ACSRQGuide {
             KeyItemData.add(item)
         }
 
-        for (let region = GameConstants.Region.kanto; region < GameConstants.MAX_AVAILABLE_REGION; region++) {
+        for (let region = GameConstants.Region.kanto; region < GameConstants.Region.final; region++) {
             this.regionsData[region] = []
 
-            // collect TownData
             for (const town of Object.values(TownList).filter(town => town.region === region && town.constructor.name === "Town")) {
                 TownData.add(town)
             }
@@ -768,13 +772,15 @@ class ACSRQGuide {
                 }
             } while (!result.done)
 
-            console.log(queue, this.regionsData)
+            // cleanup
 
-            setTimeout(() => {
-                $('#receiveBadgeModal').modal('hide')
-                $('#questStepClearedModal').modal('hide')
-            }, 500)
+            console.log(queue, 'cleanup')
         }
+
+        setTimeout(() => {
+            $('#receiveBadgeModal').modal('hide')
+            $('#questStepClearedModal').modal('hide')
+        }, 500)
     }
 }
 
