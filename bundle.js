@@ -338,6 +338,7 @@ const cache = {
     evo: new Set(),
     pokemon: new Set(),
     regionalItem: new Set(),
+    regionalDock: true, // default true because we skip this check in kanto
 }
 
 /* overrides */ {
@@ -404,6 +405,10 @@ function addEvoStone(stone) {
         for (const evo of pkm.evolutions) {
             if (evo.trigger === EvoTrigger.STONE && evo.stone === stone && EvolutionHandler.isSatisfied(evo)) {
                 addPokemon.call(this, evo.evolvedPokemon)
+
+                if(!cache.regionalDock && PokemonHelper.calcNativeRegion(evo.basePokemon) < instance.regionsData.length - 1) {
+                    cache.pokemon.delete(evo.basePokemon);
+                }
             }
         }
     }
@@ -469,7 +474,6 @@ class TownData extends Data {
         return true
     }
 
-
     compute() {
         const data = super.compute();
 
@@ -482,6 +486,14 @@ class TownData extends Data {
                     const pokemonList = SafariPokemonList.list[this._ref.region]()
                     for (const pokemon of pokemonList) {
                         addPokemon.call(data, pokemon.name)
+                    }
+                    break
+                case 'DockTownContent':
+                    if (!cache.regionalDock) {
+                        for (const pkm of App.game.party.caughtPokemon) {
+                            cache.pokemon.add(pkm.name)
+                        }
+                        cache.regionalDock = true
                     }
                     break
             }
@@ -651,12 +663,7 @@ class RouteData extends Data {
 
     compute() {
         const data = super.compute();
-
-        this._ref.pokemon.land.forEach(addPokemon.bind(data))
-
-        if (App.game.keyItems.hasKeyItem(KeyItemType.Super_rod))
-            this._ref.pokemon.water.forEach(addPokemon.bind(data))
-
+        RouteHelper.getAvailablePokemonList(this._ref.number, this._ref.region).forEach(addPokemon.bind(data))
         return data
     }
 }
@@ -678,10 +685,10 @@ class QuestlineData {
                 if (q.requirement && !q.requirement.isCompleted()) {
                     return false;
                 }
-                if (q.bulletinBoard !== GameConstants.BulletinBoards.All) {
+                if (q.bulletinBoard === GameConstants.BulletinBoards.None) {
                     return false;
                 }
-                quest.beginQuest()
+                q.beginQuest()
             }
             case QuestLineState.started: {
                 const current = q.curQuestObject()
@@ -699,7 +706,8 @@ class QuestlineData {
                         break;
                     }
                     case 'TalkToNPCQuest': {
-                        current.npc.talkedTo(true)
+                        if(current.npc.options.requirement.isCompleted())
+                            current.npc.talkedTo(true)
                         break;
                     }
                     default:
@@ -807,6 +815,7 @@ class ACSRQGuide {
             // cleanup
             console.log(queue)
 
+            cache.regionalDock = false;
             cache.regionalItem.clear();
         }
 
@@ -849,6 +858,7 @@ function swap(array, index_a, index_b)
 }
 
 //#region Kanto
+TownList["Pokémon Tower"].requirements.push(new TemporaryBattleRequirement('Fighting Dojo'))
 TemporaryBattleList['Snorlax route 16'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 15))
 TownList["Fuchsia City"].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 18))
 TownList['Two Island'].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Mt. Ember Summit')))
@@ -858,8 +868,14 @@ Routes.getRoute(GameConstants.Region.kanto, 21).requirements.push(new ClearDunge
 GymList['Viridian City'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 21))
 //#endregion
 
-swap(GameConstants.TemporaryBattles, 6, 7) // exchange Snorlax 16 and Blue 5
-swap(GameConstants.TemporaryBattles, 5, 6) // exchange Snorlax 12 and Blue 5
+//#region Johto
+TownList["Cherrygrove City"].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 46))
+TemporaryBattleList['Sudowoodo'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 36))
+Routes.getRoute(GameConstants.Region.johto, 42).requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 48))
+TownList["Mt. Mortar"].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 42))
+TownList["Mahogany Town"].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Mt. Mortar')))
+TownList['Tohjo Falls'].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Dark Cave')))
+//#endregion
 
 const keyItemsInitialize = KeyItems.prototype.initialize;
 KeyItems.prototype.initialize = function() {

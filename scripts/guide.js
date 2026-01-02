@@ -3,6 +3,7 @@ const cache = {
     evo: new Set(),
     pokemon: new Set(),
     regionalItem: new Set(),
+    regionalDock: true, // default true because we skip this check in kanto
 }
 
 /* overrides */ {
@@ -69,6 +70,10 @@ function addEvoStone(stone) {
         for (const evo of pkm.evolutions) {
             if (evo.trigger === EvoTrigger.STONE && evo.stone === stone && EvolutionHandler.isSatisfied(evo)) {
                 addPokemon.call(this, evo.evolvedPokemon)
+
+                if(!cache.regionalDock && PokemonHelper.calcNativeRegion(evo.basePokemon) < instance.regionsData.length - 1) {
+                    cache.pokemon.delete(evo.basePokemon);
+                }
             }
         }
     }
@@ -134,7 +139,6 @@ class TownData extends Data {
         return true
     }
 
-
     compute() {
         const data = super.compute();
 
@@ -147,6 +151,14 @@ class TownData extends Data {
                     const pokemonList = SafariPokemonList.list[this._ref.region]()
                     for (const pokemon of pokemonList) {
                         addPokemon.call(data, pokemon.name)
+                    }
+                    break
+                case 'DockTownContent':
+                    if (!cache.regionalDock) {
+                        for (const pkm of App.game.party.caughtPokemon) {
+                            cache.pokemon.add(pkm.name)
+                        }
+                        cache.regionalDock = true
                     }
                     break
             }
@@ -316,12 +328,7 @@ class RouteData extends Data {
 
     compute() {
         const data = super.compute();
-
-        this._ref.pokemon.land.forEach(addPokemon.bind(data))
-
-        if (App.game.keyItems.hasKeyItem(KeyItemType.Super_rod))
-            this._ref.pokemon.water.forEach(addPokemon.bind(data))
-
+        RouteHelper.getAvailablePokemonList(this._ref.number, this._ref.region).forEach(addPokemon.bind(data))
         return data
     }
 }
@@ -343,10 +350,10 @@ class QuestlineData {
                 if (q.requirement && !q.requirement.isCompleted()) {
                     return false;
                 }
-                if (q.bulletinBoard !== GameConstants.BulletinBoards.All) {
+                if (q.bulletinBoard === GameConstants.BulletinBoards.None) {
                     return false;
                 }
-                quest.beginQuest()
+                q.beginQuest()
             }
             case QuestLineState.started: {
                 const current = q.curQuestObject()
@@ -364,7 +371,8 @@ class QuestlineData {
                         break;
                     }
                     case 'TalkToNPCQuest': {
-                        current.npc.talkedTo(true)
+                        if(current.npc.options.requirement.isCompleted())
+                            current.npc.talkedTo(true)
                         break;
                     }
                     default:
@@ -472,6 +480,7 @@ class ACSRQGuide {
             // cleanup
             console.log(queue)
 
+            cache.regionalDock = false;
             cache.regionalItem.clear();
         }
 

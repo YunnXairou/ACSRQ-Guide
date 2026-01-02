@@ -6,6 +6,7 @@ function swap(array, index_a, index_b)
 }
 
 //#region Kanto
+TownList["Pokémon Tower"].requirements.push(new TemporaryBattleRequirement('Fighting Dojo'))
 TemporaryBattleList['Snorlax route 16'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 15))
 TownList["Fuchsia City"].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 18))
 TownList['Two Island'].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Mt. Ember Summit')))
@@ -15,8 +16,14 @@ Routes.getRoute(GameConstants.Region.kanto, 21).requirements.push(new ClearDunge
 GymList['Viridian City'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.kanto, 21))
 //#endregion
 
-swap(GameConstants.TemporaryBattles, 6, 7) // exchange Snorlax 16 and Blue 5
-swap(GameConstants.TemporaryBattles, 5, 6) // exchange Snorlax 12 and Blue 5
+//#region Johto
+TownList["Cherrygrove City"].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 46))
+TemporaryBattleList['Sudowoodo'].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 36))
+Routes.getRoute(GameConstants.Region.johto, 42).requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 48))
+TownList["Mt. Mortar"].requirements.push(new RouteKillRequirement(GameConstants.ROUTE_KILLS_NEEDED, GameConstants.Region.johto, 42))
+TownList["Mahogany Town"].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Mt. Mortar')))
+TownList['Tohjo Falls'].requirements.push(new ClearDungeonRequirement(1, GameConstants.getDungeonIndex('Dark Cave')))
+//#endregion
 
 const keyItemsInitialize = KeyItems.prototype.initialize;
 KeyItems.prototype.initialize = function() {
