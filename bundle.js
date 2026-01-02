@@ -333,10 +333,9 @@ module.exports = {
 }
 
 },{}],4:[function(require,module,exports){
-const useRealEvo = false;
-
 const queue = new Map()
 const cache = {
+    evo: new Set(),
     pokemon: new Set(),
     regionalItem: new Set(),
 }
@@ -348,7 +347,7 @@ const cache = {
     ClientRequirement.prototype.isCompleted = function () { return true }
     SpecialEventRequirement.prototype.isCompleted = function () { return false }
     PartyPokemon.prototype.checkForLevelEvolution = function () { }; // prevent pokemon from evolving with level.
-    Party.prototype.calculatePokemonAttack = function () { }; 
+    Party.prototype.calculatePokemonAttack = function () { };
 }
 
 //#region Data Filler
@@ -360,18 +359,28 @@ function addPokemon(pokemon) {
     cache.pokemon.add(pokemon)
 
     App.game.party.gainPokemonByName(pokemon)
-    
-    if (useRealEvo) {
-        const pkm = App.game.party.getPokemonByName(pokemon)
-        if (pkm.evolutions == null || pkm.evolutions.length == 0)
-            return
 
-        pkm.gainLevels(100)
+    const pkm = App.game.party.getPokemonByName(pokemon)
+    if (pkm.evolutions == null || pkm.evolutions.length == 0)
+        return
 
-        for (const evo of pkm.evolutions) {
-            if (evo.trigger === EvoTrigger.LEVEL && EvolutionHandler.isSatisfied(evo)) {
+    pkm.level = App.game.badgeCase.maxLevel()
+
+    for (const evo of pkm.evolutions) {
+        if (!EvolutionHandler.isSatisfied(evo)) {
+            continue;
+        }
+
+        switch (evo.trigger) {
+            case EvoTrigger.STONE: {
+                if (cache.evo.has(evo.stone)) {
+                    addPokemon.call(this, evo.evolvedPokemon)
+                }
+                break
+            }
+            case EvoTrigger.LEVEL: {
                 addPokemon.call(this, evo.evolvedPokemon)
-                console.log(evo.evolvedPokemon)
+                break;
             }
         }
     }
@@ -381,6 +390,21 @@ function addMysteryEgg(region) {
     for (const type of Object.values(App.game.breeding.hatchList)) {
         for (const pkm of type[region]) {
             addPokemon.call(this, pkm)
+        }
+    }
+}
+
+function addEvoStone(stone) {
+    cache.evo.add(stone)
+
+    for (const pkm of App.game.party.caughtPokemon) {
+        if (pkm.evolutions == null || pkm.evolutions.length == 0)
+            continue
+
+        for (const evo of pkm.evolutions) {
+            if (evo.trigger === EvoTrigger.STONE && evo.stone === stone && EvolutionHandler.isSatisfied(evo)) {
+                addPokemon.call(this, evo.evolvedPokemon)
+            }
         }
     }
 }
@@ -397,9 +421,9 @@ class Data {
         return {
             region: this.region,
             area: this.area,
-            pokemon: [],
             key: [],
-            shops: []
+            shops: [],
+            pokemon: [],
         }
     }
 }
@@ -471,28 +495,38 @@ class TownData extends Data {
 
         for (const item of shop.items) {
             switch (item.constructor.name) {
-                case "PokeballItem":
+                case "PokeballItem": {
                     if (!cache.regionalItem.has(item.name)) {
                         cache.regionalItem.add(item.name)
                         data.shops.push(item.displayName)
                     }
                     break;
-                case "PokemonItem":
+                }
+                case "PokemonItem": {
                     hasShopMon = true
                     addPokemon.call(data, item.name);
                     break;
-                case "EggItem":
+                }
+                case "EggItem": {
                     if (App.game.keyItems.hasKeyItem(KeyItemType.Mystery_egg)) {
                         if (item.type === GameConstants.EggItemType.Mystery_egg) {
                             addMysteryEgg.call(data, this._ref.region)
                             data.shops.push(item.displayName)
                         }
-                        break;
+                    } else {
+
+                        data.shops.push(item.displayName)
+                        item.gain(1)
                     }
-                case "EvolutionStone":
-                    data.shops.push(item.displayName)
-                    item.gain(1)
                     break;
+                }
+                case "EvolutionStone": {
+                    if (!cache.evo.has(item.type)) {
+                        data.shops.push(item.displayName)
+                        addEvoStone.call(data, item.type)
+                    }
+                    break;
+                }
             }
         }
 
@@ -525,16 +559,12 @@ class GymData extends Data {
     }
 
     compute() {
-        if (!useRealEvo) {
-            return super.compute();
-        }
-
         const data = super.compute();
         for (const pkm of App.game.party.caughtPokemon) {
             if (pkm.evolutions == null || pkm.evolutions.length == 0)
                 continue
 
-            pkm.gainLevels(100)
+            pkm.level = App.game.badgeCase.maxLevel()
 
             for (const evo of pkm.evolutions) {
                 if (evo.trigger === EvoTrigger.LEVEL && EvolutionHandler.isSatisfied(evo)) {
@@ -643,8 +673,7 @@ class QuestlineData {
     complete() {
         const q = this._ref;
 
-        switch(q.state())
-        {
+        switch (q.state()) {
             case QuestLineState.inactive: {
                 if (q.requirement && !q.requirement.isCompleted()) {
                     return false;
@@ -674,7 +703,7 @@ class QuestlineData {
                         break;
                     }
                     default:
-                        // console.log(current)
+                    // console.log(current)
                 }
                 break
             }
@@ -777,6 +806,8 @@ class ACSRQGuide {
 
             // cleanup
             console.log(queue)
+
+            cache.regionalItem.clear();
         }
 
         setTimeout(() => {
