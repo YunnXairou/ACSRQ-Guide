@@ -71,7 +71,7 @@ function addEvoStone(stone) {
             if (evo.trigger === EvoTrigger.STONE && evo.stone === stone && EvolutionHandler.isSatisfied(evo)) {
                 addPokemon.call(this, evo.evolvedPokemon)
 
-                if(!cache.regionalDock && PokemonHelper.calcNativeRegion(evo.basePokemon) < instance.regionsData.length - 1) {
+                if (!cache.regionalDock && PokemonHelper.calcNativeRegion(evo.basePokemon) < instance.regionsData.length - 1) {
                     cache.pokemon.delete(evo.basePokemon);
                 }
             }
@@ -333,6 +333,86 @@ class RouteData extends Data {
     }
 }
 
+class FossilData extends Data {
+    static add(region) {
+        const pokemonList = Object.values(GameConstants.FossilToPokemon).filter(p => PokemonHelper.calcNativeRegion(p) === region)
+        if (pokemonList.length > 0)
+            queue.set(`fossil.${region}`, new this({ region }, pokemonList))
+    }
+
+    constructor(region, pokemonList) {
+        super(region, "Fossils")
+        this.pokemonList = pokemonList
+    }
+
+    complete() {
+        return true
+    }
+
+    compute() {
+        const data = super.compute();
+        this.pokemonList.forEach(addPokemon.bind(data))
+        return data
+    }
+}
+class RoamingData extends Data {
+    static add(region) {
+        RoamingPokemonList.roamerGroups[region].forEach((subregion, i) => {
+            const pkmList = RoamingPokemonList.list[region][i]?.filter(pkm => pkm.pokemon.nativeRegion === region)
+            if (pkmList)
+                queue.set(`roaming.${subregion.name}`, new this(subregion.name, pkmList))
+        })
+    }
+
+    constructor(region, pokemonList) {
+        super(null, "Roamers")
+        this.region = region
+        this.pokemonList = pokemonList
+    }
+
+    complete() {
+        return this.pokemonList.some(pkm => pkm.isRoaming())
+    }
+
+    compute() {
+        const data = super.compute();
+        this.pokemonList.forEach(pkm => {
+            if (pkm.isRoaming()) {
+                addPokemon.call(data, pkm.pokemon.name)
+            }
+        })
+        return data
+    }
+}
+class BreedingData extends Data {
+    static add(region) {
+        const min = region > 0 ? GameConstants.MaxIDPerRegion[region - 1] : 0
+        const max = GameConstants.MaxIDPerRegion[region]
+
+        queue.set(`breeding.${region}`, new this({ region }, min + 1, max))
+    }
+
+    constructor(region, minId, maxId) {
+        super(region, "Breeding")
+        this.minId = minId
+        this.maxId = maxId
+    }
+
+    complete() {
+        return true
+    }
+
+    compute() {
+        const data = super.compute();
+        for (let id = this.minId; id <= this.maxId; id++) {
+            if (!App.game.party.getPokemon(id)) {
+                addPokemon.call(data, PokemonHelper.getPokemonById(id).name)
+            }
+        }
+        return data
+    }
+}
+
 class QuestlineData {
     static add(quest) {
         queue.set(`q.${quest.name}`, new this(quest))
@@ -371,7 +451,7 @@ class QuestlineData {
                         break;
                     }
                     case 'TalkToNPCQuest': {
-                        if(current.npc.options.requirement.isCompleted())
+                        if (!current.npc.options.requirement || current.npc.options.requirement.isCompleted())
                             current.npc.talkedTo(true)
                         break;
                     }
@@ -440,7 +520,7 @@ class ACSRQGuide {
             KeyItemData.add(item)
         }
 
-        for (let region = GameConstants.Region.kanto; region < GameConstants.Region.final; region++) {
+        for (let region = GameConstants.Region.kanto; region < GameConstants.Region.hoenn; region++) {
             this.regionsData[region] = []
 
             for (const town of Object.values(TownList).filter(town => town.region === region && town.constructor.name === "Town")) {
@@ -458,6 +538,10 @@ class ACSRQGuide {
             for (const route of Routes.getRoutesByRegion(region)) {
                 RouteData.add(route)
             }
+
+            FossilData.add(region)
+            RoamingData.add(region)
+            BreedingData.add(region)
 
             let result, iterator = queue.entries();
             do {
