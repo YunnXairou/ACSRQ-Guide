@@ -78,7 +78,7 @@ function addEvoStone(stone) {
             if (evo.trigger === EvoTrigger.STONE && evo.stone === stone && EvolutionHandler.isSatisfied(evo)) {
                 addPokemon.call(this, evo.evolvedPokemon)
 
-                if (!cache.regionalDock && PokemonHelper.calcNativeRegion(evo.basePokemon) < instance.regionsData.length - 1) {
+                if (!cache.regionalDock && PokemonHelper.calcNativeRegion(evo.basePokemon) <= player.region) {
                     cache.pokemon.delete(evo.basePokemon);
                 }
             }
@@ -434,14 +434,19 @@ class BreedingData extends Data {
 
     compute() {
         const data = super.compute();
-        for (let id = this.minId; id <= this.maxId; id++) {
-            if (!App.game.party.getPokemon(id)) {
-                addPokemon.call(data, PokemonHelper.getPokemonById(id).name)
-            }
-        }
+        // for (let id = this.minId; id <= this.maxId; id++) {
+        //     if (!App.game.party.getPokemon(id)) {
+        //         addPokemon.call(data, PokemonHelper.getPokemonById(id).name)
+        //     }
+        // }
         App.game.party.caughtPokemon.forEach(p => {
             if (!p.shiny) {
                 addPokemon.call(data, p.name)
+            }
+
+            const baby = pokemonBabyPrevolutionMap[p.name]
+            if (baby && !App.game.party.getPokemonByName(baby) && PokemonHelper.calcNativeRegion(baby) <= player.region) {
+                addPokemon.call(data, baby)
             }
         })
 
