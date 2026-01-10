@@ -339,6 +339,7 @@ const cache = {
     pokemon: new Set(),
     regionalItem: new Set(),
     regionalDock: true, // default true because we skip this check in kanto
+    quests: new Map()
 }
 
 /* overrides */ {
@@ -346,20 +347,26 @@ const cache = {
 
     KeyItemController.showGainModal = function () { };
     ClientRequirement.prototype.isCompleted = function () { return true }
+    SeededDateRequirement.prototype.isCompleted = function () { return true }
+    DayCyclePartRequirement.prototype.isCompleted = function () { return true }
     SpecialEventRequirement.prototype.isCompleted = function () { return false }
     PartyPokemon.prototype.checkForLevelEvolution = function () { }; // prevent pokemon from evolving with level.
     Party.prototype.calculatePokemonAttack = function () { };
 }
 
 //#region Data Filler
-function addPokemon(pokemon) {
+function addPokemon(pokemon, shiny = true) {
+    console.trace(pokemon, shiny)
+
     if (cache.pokemon.has(pokemon))
         return
+    else if (shiny !== false) {
+        cache.pokemon.add(pokemon)
+        shiny = true
+    }
 
     this.pokemon.push(pokemon)
-    cache.pokemon.add(pokemon)
-
-    App.game.party.gainPokemonByName(pokemon)
+    App.game.party.gainPokemonByName(pokemon, shiny)
 
     const pkm = App.game.party.getPokemonByName(pokemon)
     if (pkm.evolutions == null || pkm.evolutions.length == 0)
@@ -375,12 +382,12 @@ function addPokemon(pokemon) {
         switch (evo.trigger) {
             case EvoTrigger.STONE: {
                 if (cache.evo.has(evo.stone)) {
-                    addPokemon.call(this, evo.evolvedPokemon)
+                    addPokemon.call(this, evo.evolvedPokemon, shiny)
                 }
                 break
             }
             case EvoTrigger.LEVEL: {
-                addPokemon.call(this, evo.evolvedPokemon)
+                addPokemon.call(this, evo.evolvedPokemon, shiny)
                 break;
             }
         }
@@ -416,6 +423,12 @@ function addEvoStone(stone) {
 //#endregion
 
 //#region Data classes
+const DataStatus = {
+    Waiting: false,
+    Done: true,
+    Processing: 2
+}
+
 class Data {
     constructor(town, area) {
         this.region = town ? SubRegions.getSubRegionById(town.region, town.subRegion || 0).name : ''
@@ -460,9 +473,9 @@ class TownData extends Data {
         this._ref = town;
     }
 
-    complete() {
+    status() {
         if (!this._ref.isUnlocked()) {
-            return false
+            return DataStatus.Waiting
         }
 
         for (const shop of this._ref.content) {
@@ -558,9 +571,9 @@ class GymData extends Data {
         this._refTown = town;
     }
 
-    complete() {
+    status() {
         if (!this._ref.isUnlocked() || (this._refTown && !this._refTown.isUnlocked())) {
-            return false
+            return DataStatus.Waiting
         }
 
         GameHelper.incrementObservable(App.game.statistics.gymsDefeated[GameConstants.getGymIndex(this._ref.town)]);
@@ -599,15 +612,23 @@ class BattleData extends Data {
         this._refTown = town;
     }
 
-    complete() {
+    status() {
         if (!this._ref.isUnlocked() || !this._refTown.isUnlocked()) {
-            return false
+            return DataStatus.Waiting
         }
 
         TemporaryBattleRunner.startBattle(this._ref)
         TemporaryBattleRunner.battleWon(this._ref)
 
         return true
+    }
+
+    compute() {
+        const data = super.compute();
+        if (!this._ref.optionalArgs?.isTrainerBattle) {
+            addPokemon.call(data, this._ref.pokemons[0].name, false)
+        }
+        return data
     }
 }
 class DungeonData extends Data {
@@ -620,7 +641,7 @@ class DungeonData extends Data {
         this._ref = dungeon;
     }
 
-    complete() {
+    status() {
         if (!this._ref.isUnlocked()) {
             return false
         }
@@ -634,7 +655,16 @@ class DungeonData extends Data {
         const data = super.compute();
 
         this._ref.pokemonList.forEach(addPokemon.bind(data))
-        this._ref.bossPokemonList.forEach(addPokemon.bind(data))
+        this._ref.bossList.forEach(boss => {
+            if (boss.constructor.name === "DungeonBossPokemon") {
+                if (boss.options?.requirement.isCompleted() !== false) {
+                    addPokemon.call(data, boss.name)
+                } else {
+                    console.log(boss.options?.requirement)
+                    cache.quests.set(boss.name, this)
+                }
+            }
+        })
 
         return data
     }
@@ -651,7 +681,7 @@ class RouteData extends Data {
         this.area = this.area.replace(`${this.region} Route`, "")
     }
 
-    complete() {
+    status() {
         if (!this._ref.isUnlocked()) {
             return false
         }
@@ -680,7 +710,7 @@ class FossilData extends Data {
         this.pokemonList = pokemonList
     }
 
-    complete() {
+    status() {
         return true
     }
 
@@ -705,7 +735,7 @@ class RoamingData extends Data {
         this.pokemonList = pokemonList
     }
 
-    complete() {
+    status() {
         return this.pokemonList.some(pkm => pkm.isRoaming())
     }
 
@@ -733,7 +763,7 @@ class BreedingData extends Data {
         this.maxId = maxId
     }
 
-    complete() {
+    status() {
         return true
     }
 
@@ -744,6 +774,12 @@ class BreedingData extends Data {
                 addPokemon.call(data, PokemonHelper.getPokemonById(id).name)
             }
         }
+        App.game.party.caughtPokemon.forEach(p => {
+            if (!p.shiny) {
+                addPokemon.call(data, p.name)
+            }
+        })
+
         return data
     }
 }
@@ -757,7 +793,7 @@ class QuestlineData {
         this._ref = quest
     }
 
-    complete() {
+    status() {
         const q = this._ref;
 
         switch (q.state()) {
@@ -776,19 +812,35 @@ class QuestlineData {
                     case 'DefeatDungeonQuest': {
                         if (!queue.has(`d.${current.dungeon}`)) {
                             GameHelper.incrementObservable(App.game.statistics.dungeonsCleared[GameConstants.getDungeonIndex(current.dungeon)]);
+                            return DataStatus.Processing
                         }
                         break;
                     }
                     case 'DefeatGymQuest': {
                         if (!queue.has(`g.${current.gymTown}`)) {
                             GameHelper.incrementObservable(App.game.statistics.gymsDefeated[GameConstants.getGymIndex(current.gymTown)]);
+                            return DataStatus.Processing
                         }
                         break;
                     }
                     case 'TalkToNPCQuest': {
-                        if (!current.npc.options.requirement || current.npc.options.requirement.isCompleted())
+                        if (!current.npc.options.requirement || current.npc.options.requirement.isCompleted()) {
                             current.npc.talkedTo(true)
+                            return DataStatus.Processing
+                        }
                         break;
+                    }
+                    case 'HatchEggsQuest': {
+                        GameHelper.incrementObservable(current.focus, current.amount);
+                        return DataStatus.Processing
+                    }
+                    case 'CaptureSpecificPokemonQuest': {
+                        const data = cache.quests.get(current.pokemon.name)
+                        if (data) {
+                            instance.regionsData[player.region].push(data.compute())
+                            cache.quests.delete(current.pokemon.name)
+                            return DataStatus.Processing
+                        }
                     }
                     default:
                     // console.log(current)
@@ -808,12 +860,12 @@ class KeyItemData {
         this._ref = item
     }
 
-    complete() {
+    status() {
         if (!this._ref.isUnlocked()) {
             return false
         }
 
-        const region = instance.regionsData.length - 1
+        const region = player.region
         const regionData = instance.regionsData[region]
         const data = regionData[regionData.length - 1]
         if (!data) {
@@ -855,7 +907,7 @@ class ACSRQGuide {
             KeyItemData.add(item)
         }
 
-        for (let region = GameConstants.Region.kanto; region < GameConstants.Region.hoenn; region++) {
+        for (let region = GameConstants.Region.kanto; region < GameConstants.Region.hoenn; region++, player.region = region) {
             this.regionsData[region] = []
 
             for (const town of Object.values(TownList).filter(town => town.region === region && town.constructor.name === "Town")) {
@@ -885,14 +937,13 @@ class ACSRQGuide {
                     continue
 
                 const [key, data] = result.value;
-                if (data.complete()) {
-
-                    if (data instanceof Data)
-                        this.regionsData[region].push(data.compute())
-
-                    // restart checks - its bad but needed for backtracking...
-                    queue.delete(key)
-                    iterator = queue.entries()
+                switch (data.status()) {
+                    case DataStatus.Done:
+                        if (data instanceof Data)
+                            this.regionsData[region].push(data.compute())
+                        queue.delete(key)
+                    case DataStatus.Processing:
+                        iterator = queue.entries()
                 }
             } while (!result.done)
 
